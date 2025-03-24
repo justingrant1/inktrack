@@ -1,4 +1,3 @@
-
 import React, { useRef, useEffect } from 'react';
 import { useInfiniteQuery } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
@@ -10,13 +9,12 @@ import { Skeleton } from '@/components/ui/skeleton';
 import { useInView } from 'react-intersection-observer';
 import { toast } from 'sonner';
 
-// Function to get tattoos from the database
 const fetchPublicTattoos = async (page: number, pageSize: number) => {
-  // Calculate range for pagination
   const from = (page - 1) * pageSize;
   const to = from + pageSize - 1;
   
-  // Get all tattoos
+  console.log(`Fetching public tattoos: page ${page}, range ${from}-${to}`);
+  
   const { data, error, count } = await supabase
     .from('tattoos')
     .select(`
@@ -26,20 +24,33 @@ const fetchPublicTattoos = async (page: number, pageSize: number) => {
     .order('created_at', { ascending: false })
     .range(from, to);
     
-  if (error) throw error;
+  if (error) {
+    console.error('Error fetching tattoos:', error);
+    throw error;
+  }
   
-  // Format the data
-  return {
-    tattoos: data.map((tattoo: any) => ({
+  console.log(`Fetched ${data?.length || 0} tattoos, total count: ${count || 0}`);
+  
+  const tattoos = data.map((tattoo: any) => {
+    const isPublic = localStorage.getItem(`tattoo_public_${tattoo.id}`) === 'true';
+    console.log(`Tattoo ${tattoo.id}: ${tattoo.title} - isPublic: ${isPublic}`);
+    
+    return {
       ...tattoo,
       dateAdded: new Date(tattoo.date_added),
       username: tattoo.profiles?.username,
       avatar_url: tattoo.profiles?.avatar_url,
-      // Use localStorage to check if the tattoo is public
-      isPublic: localStorage.getItem(`tattoo_public_${tattoo.id}`) === 'true'
-    }))
-    // Filter to only show public tattoos
-    .filter((tattoo: any) => tattoo.isPublic),
+      isPublic: isPublic
+    };
+  })
+  .filter((tattoo: any) => {
+    return tattoo.isPublic;
+  });
+  
+  console.log(`After filtering: ${tattoos.length} public tattoos`);
+  
+  return {
+    tattoos,
     totalCount: count || 0,
     totalPages: Math.ceil((count || 0) / pageSize)
   };
@@ -50,17 +61,16 @@ const PublicFeed = () => {
   const page = parseInt(searchParams.get('page') || '1');
   const pageSize = 9; // Show more items per page
   
-  // Setup infinite scrolling with react-intersection-observer
   const { ref: loadMoreRef, inView } = useInView();
   const loadedPagesRef = useRef<Set<number>>(new Set([1]));
   
-  // Fetch public tattoos with infinite pagination
   const { 
     data, 
     isLoading, 
     fetchNextPage, 
     hasNextPage, 
-    isFetchingNextPage 
+    isFetchingNextPage,
+    refetch 
   } = useInfiniteQuery({
     queryKey: ['public-tattoos-infinite'],
     queryFn: ({ pageParam }) => fetchPublicTattoos(pageParam, pageSize),
@@ -71,17 +81,18 @@ const PublicFeed = () => {
     },
   });
   
-  // Load more tattoos when user scrolls to the bottom
   useEffect(() => {
     if (inView && hasNextPage && !isFetchingNextPage) {
       fetchNextPage();
     }
   }, [inView, fetchNextPage, hasNextPage, isFetchingNextPage]);
   
-  // Flatten tattoo data from all pages
+  useEffect(() => {
+    refetch();
+  }, [refetch]);
+  
   const allTattoos = data?.pages.flatMap(page => page.tattoos) || [];
   
-  // Function to render tattoo cards or skeletons
   const renderTattooCards = () => {
     if (isLoading) {
       return Array(6).fill(0).map((_, index) => (
