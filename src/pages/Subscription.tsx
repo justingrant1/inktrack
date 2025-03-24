@@ -8,67 +8,33 @@ import { useNavigate } from 'react-router-dom';
 import { SUBSCRIPTION_TIERS } from '@/utils/subscriptionTiers';
 import Header from '@/components/Header';
 import { useAuth } from '@/context/AuthContext';
-import { redirectToStripeCheckout, isUserPremium } from '@/utils/stripe';
 
 const Subscription = () => {
   const navigate = useNavigate();
   const { user } = useAuth();
   const [isLoading, setIsLoading] = React.useState(false);
-  const isPremium = isUserPremium();
 
-  // Handle upgrade with Stripe checkout
+  // In a real app, this would integrate with a payment processor like Stripe
   const handleUpgrade = async () => {
-    if (!user) {
-      toast.error('You must be logged in to upgrade');
-      return;
-    }
+    if (!user) return;
     
     setIsLoading(true);
     try {
-      // Redirect to Stripe checkout
-      const success = redirectToStripeCheckout('price_premium_monthly', user.id);
+      // Store subscription info in localStorage (temporary solution)
+      localStorage.setItem('subscription_tier', 'premium');
       
-      if (!success) {
-        throw new Error('Failed to initialize checkout');
-      }
+      // In a real app, you would update the database with the subscription info
+      // This is a simplified version until we update the database schema
       
-      // Note: The page will be redirected to Stripe, so we don't need 
-      // to reset isLoading here as the component will unmount
+      toast.success('Successfully upgraded to Premium!');
+      navigate('/app');
     } catch (error) {
       console.error('Error upgrading subscription:', error);
       toast.error('Failed to upgrade subscription. Please try again.');
+    } finally {
       setIsLoading(false);
     }
   };
-
-  // Check for successful Stripe checkout
-  React.useEffect(() => {
-    const query = new URLSearchParams(window.location.search);
-    const sessionId = query.get('session_id');
-    
-    if (sessionId) {
-      // Process the successful checkout
-      const processCheckout = async () => {
-        setIsLoading(true);
-        try {
-          const success = await handleStripeCheckoutSuccess(sessionId);
-          if (success) {
-            // Clean up the URL
-            window.history.replaceState({}, document.title, '/subscription');
-            // Redirect to app
-            navigate('/app');
-          }
-        } catch (error) {
-          console.error('Error processing checkout:', error);
-          toast.error('Failed to process your payment. Please contact support.');
-        } finally {
-          setIsLoading(false);
-        }
-      };
-      
-      processCheckout();
-    }
-  }, [navigate]);
 
   return (
     <div className="min-h-screen bg-background text-foreground">
@@ -96,12 +62,8 @@ const Subscription = () => {
               </ul>
             </CardContent>
             <CardFooter>
-              <Button 
-                variant={isPremium ? "outline" : "default"} 
-                className="w-full" 
-                onClick={() => navigate('/app')}
-              >
-                {isPremium ? 'Switch to Free' : 'Current Plan'}
+              <Button variant="outline" className="w-full" onClick={() => navigate('/app')}>
+                Current Plan
               </Button>
             </CardFooter>
           </Card>
@@ -132,11 +94,9 @@ const Subscription = () => {
               <Button 
                 className="w-full" 
                 onClick={handleUpgrade} 
-                disabled={isLoading || isPremium}
+                disabled={isLoading}
               >
-                {isLoading ? 'Processing...' : isPremium ? (
-                  'Current Plan'
-                ) : (
+                {isLoading ? 'Processing...' : (
                   <>
                     <CreditCard className="mr-2 h-4 w-4" />
                     Upgrade Now
@@ -145,14 +105,6 @@ const Subscription = () => {
               </Button>
             </CardFooter>
           </Card>
-        </div>
-        
-        {/* Payment Information */}
-        <div className="max-w-4xl mx-auto mt-10 p-6 bg-muted/50 rounded-lg">
-          <h2 className="text-xl font-semibold mb-4">Payment Information</h2>
-          <p className="mb-2">• Secure payments processed by Stripe</p>
-          <p className="mb-2">• Cancel anytime from your account settings</p>
-          <p className="mb-2">• Questions? Contact our support team</p>
         </div>
       </main>
     </div>
