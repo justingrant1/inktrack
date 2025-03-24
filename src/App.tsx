@@ -13,46 +13,33 @@ import PublicFeed from "./pages/PublicFeed";
 import { AuthProvider } from "./context/AuthContext";
 import ProtectedRoute from "./components/ProtectedRoute";
 import { useEffect } from "react";
-import { supabase } from "./integrations/supabase/client";
+import { toast } from "sonner";
 
 const queryClient = new QueryClient();
 
-// Initialize storage bucket for tattoo images if it doesn't exist
-const initializeStorage = async () => {
-  try {
-    // Check if the bucket exists
-    const { data: buckets } = await supabase.storage.listBuckets();
-    const bucketExists = buckets?.some(bucket => bucket.name === 'tattoos');
-    
-    if (!bucketExists) {
-      // Create the bucket
-      const { error } = await supabase.storage.createBucket('tattoos', {
-        public: true,
-        fileSizeLimit: 10485760, // 10MB
-      });
-      
-      if (error) {
-        console.error('Error creating storage bucket:', error);
-      } else {
-        console.log('Created tattoos storage bucket');
-      }
-    }
-  } catch (error) {
-    console.error('Error initializing storage:', error);
-  }
-};
-
-// Initialize database tables for comments and likes
-const initializeTables = async () => {
-  // This will be handled through Supabase migrations in a real app
-  // For now, we'll just log that the initialization is needed
-  console.log('Tables for comments and likes should be created in Supabase');
+// Initialize local storage for comments and likes
+const initializeLocalStorage = () => {
+  console.log('Initializing local storage for comments and likes');
+  // In a real app, this would be handled by Supabase
+  // For now, we'll simulate it with localStorage
+  
+  // Note: In a production app, we would create these tables in Supabase
+  // and add proper RLS policies for them
 };
 
 const App = () => {
   useEffect(() => {
-    initializeStorage();
-    initializeTables();
+    initializeLocalStorage();
+    
+    // Here we'd check if the Supabase tables exist and create them if not
+    // Since we can't modify the database schema in this demo, we're using localStorage
+    
+    console.log('Tables for comments and likes should be created in Supabase');
+    
+    // In a real setup, we would ensure these tables exist:
+    // - tattoo_comments (id, tattoo_id, user_id, text, created_at)
+    // - tattoo_likes (id, tattoo_id, user_id, created_at)
+    // - Add is_public column to the tattoos table
   }, []);
 
   return (

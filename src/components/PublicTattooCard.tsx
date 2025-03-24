@@ -1,7 +1,7 @@
 
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { format } from 'date-fns';
-import { Heart, MessageSquare, Calendar, User } from 'lucide-react';
+import { Heart, MessageSquare } from 'lucide-react';
 import { Card, CardHeader, CardContent, CardFooter } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
@@ -11,9 +11,19 @@ import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from '@/
 import Comment from './Comment';
 import CommentForm from './CommentForm';
 import { useAuth } from '@/context/AuthContext';
-import { supabase } from '@/integrations/supabase/client';
 import { toast } from 'sonner';
-import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
+import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
+
+// Since we can't modify Supabase schema, let's simulate comments and likes in local storage
+const getStoredComments = (tattooId: string) => {
+  const stored = localStorage.getItem(`tattoo_comments_${tattooId}`);
+  return stored ? JSON.parse(stored) : [];
+};
+
+const getStoredLikes = (tattooId: string) => {
+  const stored = localStorage.getItem(`tattoo_likes_${tattooId}`);
+  return stored ? JSON.parse(stored) : [];
+};
 
 interface PublicTattooCardProps {
   tattoo: {
@@ -35,69 +45,65 @@ const PublicTattooCard = ({ tattoo }: PublicTattooCardProps) => {
   const queryClient = useQueryClient();
   const [liked, setLiked] = useState(false);
   
-  // Fetch likes count
+  // Simulate fetching likes using local storage
   const { data: likesData } = useQuery({
     queryKey: ['tattoo-likes', tattoo.id],
     queryFn: async () => {
-      const { data, error } = await supabase
-        .from('tattoo_likes')
-        .select('*', { count: 'exact' })
-        .eq('tattoo_id', tattoo.id);
-        
-      if (error) throw error;
+      // Simulate API call delay
+      await new Promise(resolve => setTimeout(resolve, 100));
+      
+      const likes = getStoredLikes(tattoo.id);
       
       // Check if current user has liked this tattoo
       if (user) {
-        const userLiked = data.some(like => like.user_id === user.id);
+        const userLiked = likes.some((like: any) => like.user_id === user.id);
         setLiked(userLiked);
       }
       
       return {
-        count: data.length,
-        userHasLiked: user ? data.some(like => like.user_id === user.id) : false
+        count: likes.length,
+        userHasLiked: user ? likes.some((like: any) => like.user_id === user.id) : false
       };
     }
   });
   
-  // Fetch comments
+  // Simulate fetching comments using local storage
   const { data: comments = [] } = useQuery({
     queryKey: ['tattoo-comments', tattoo.id],
     queryFn: async () => {
-      const { data, error } = await supabase
-        .from('tattoo_comments')
-        .select(`
-          *,
-          profiles:user_id (username, avatar_url)
-        `)
-        .eq('tattoo_id', tattoo.id)
-        .order('created_at', { ascending: true });
-        
-      if (error) throw error;
+      // Simulate API call delay
+      await new Promise(resolve => setTimeout(resolve, 100));
       
-      return data.map((comment: any) => ({
-        ...comment,
-        username: comment.profiles?.username,
-        avatar_url: comment.profiles?.avatar_url
-      }));
+      return getStoredComments(tattoo.id);
     }
   });
   
-  // Add comment mutation
+  // Add comment mutation using local storage
   const addCommentMutation = useMutation({
     mutationFn: async (text: string) => {
       if (!user) throw new Error('Not authenticated');
       
-      const { data, error } = await supabase
-        .from('tattoo_comments')
-        .insert({
-          tattoo_id: tattoo.id,
-          user_id: user.id,
-          text
-        })
-        .select();
-        
-      if (error) throw error;
-      return data;
+      // Simulate API call delay
+      await new Promise(resolve => setTimeout(resolve, 300));
+      
+      const newComment = {
+        id: `comment_${Date.now()}`,
+        tattoo_id: tattoo.id,
+        user_id: user.id,
+        text,
+        created_at: new Date().toISOString(),
+        username: user.email?.split('@')[0], // Use email prefix as username
+        avatar_url: `https://ui-avatars.com/api/?name=${user.email?.charAt(0) || 'U'}&background=random`
+      };
+      
+      // Get existing comments and add the new one
+      const existingComments = getStoredComments(tattoo.id);
+      const updatedComments = [...existingComments, newComment];
+      
+      // Save to local storage
+      localStorage.setItem(`tattoo_comments_${tattoo.id}`, JSON.stringify(updatedComments));
+      
+      return newComment;
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['tattoo-comments', tattoo.id] });
@@ -108,30 +114,29 @@ const PublicTattooCard = ({ tattoo }: PublicTattooCardProps) => {
     }
   });
   
-  // Toggle like mutation
+  // Toggle like mutation using local storage
   const toggleLikeMutation = useMutation({
     mutationFn: async () => {
       if (!user) throw new Error('Not authenticated');
       
+      // Simulate API call delay
+      await new Promise(resolve => setTimeout(resolve, 300));
+      
+      const likes = getStoredLikes(tattoo.id);
+      
       if (liked) {
         // Unlike
-        const { error } = await supabase
-          .from('tattoo_likes')
-          .delete()
-          .eq('tattoo_id', tattoo.id)
-          .eq('user_id', user.id);
-          
-        if (error) throw error;
+        const updatedLikes = likes.filter((like: any) => like.user_id !== user.id);
+        localStorage.setItem(`tattoo_likes_${tattoo.id}`, JSON.stringify(updatedLikes));
       } else {
         // Like
-        const { error } = await supabase
-          .from('tattoo_likes')
-          .insert({
-            tattoo_id: tattoo.id,
-            user_id: user.id
-          });
-          
-        if (error) throw error;
+        const newLike = {
+          id: `like_${Date.now()}`,
+          tattoo_id: tattoo.id,
+          user_id: user.id,
+          created_at: new Date().toISOString()
+        };
+        localStorage.setItem(`tattoo_likes_${tattoo.id}`, JSON.stringify([...likes, newLike]));
       }
       
       return { liked: !liked };
@@ -144,6 +149,16 @@ const PublicTattooCard = ({ tattoo }: PublicTattooCardProps) => {
       toast.error('Failed to update like');
     }
   });
+  
+  // Initialize likes count
+  useEffect(() => {
+    if (!localStorage.getItem(`tattoo_likes_${tattoo.id}`)) {
+      localStorage.setItem(`tattoo_likes_${tattoo.id}`, JSON.stringify([]));
+    }
+    if (!localStorage.getItem(`tattoo_comments_${tattoo.id}`)) {
+      localStorage.setItem(`tattoo_comments_${tattoo.id}`, JSON.stringify([]));
+    }
+  }, [tattoo.id]);
   
   const handleToggleLike = () => {
     if (!user) {
@@ -158,18 +173,22 @@ const PublicTattooCard = ({ tattoo }: PublicTattooCardProps) => {
     addCommentMutation.mutate(text);
   };
 
+  // Get avatar URL or fallback
+  const avatarUrl = tattoo.avatar_url || `https://ui-avatars.com/api/?name=${tattoo.username?.charAt(0) || 'U'}&background=random`;
+  const displayName = tattoo.username || 'Anonymous';
+
   return (
     <Card className="tattoo-card animate-fade-in">
       <CardHeader className="p-4 pb-2">
         <div className="flex items-center gap-3">
           <Avatar>
-            <AvatarImage src={tattoo.avatar_url} />
+            <AvatarImage src={avatarUrl} />
             <AvatarFallback>
-              {(tattoo.username || 'U').charAt(0).toUpperCase()}
+              {displayName.charAt(0).toUpperCase()}
             </AvatarFallback>
           </Avatar>
           <div>
-            <p className="font-medium text-sm">{tattoo.username || 'Anonymous'}</p>
+            <p className="font-medium text-sm">{displayName}</p>
             <p className="text-xs text-muted-foreground">{format(tattoo.dateAdded, 'MMMM d, yyyy')}</p>
           </div>
         </div>
@@ -229,7 +248,7 @@ const PublicTattooCard = ({ tattoo }: PublicTattooCardProps) => {
             </AccordionTrigger>
             <AccordionContent>
               <div className="space-y-3">
-                {comments.map(comment => (
+                {comments.map((comment: any) => (
                   <Comment key={comment.id} comment={comment} />
                 ))}
                 

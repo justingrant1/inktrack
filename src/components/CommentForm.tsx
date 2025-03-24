@@ -31,12 +31,17 @@ const CommentForm: React.FC<CommentFormProps> = ({ tattooId, onSubmit, isLoading
     );
   }
 
+  // Get the user's initials for the avatar fallback
+  const userInitial = user.email ? user.email.charAt(0).toUpperCase() : 'U';
+  // We don't have avatar_url on the User type, so we'll use email as a key for avatar
+  const avatarUrl = user.email ? `https://ui-avatars.com/api/?name=${userInitial}&background=random` : undefined;
+
   return (
     <form onSubmit={handleSubmit} className="mt-4">
       <div className="flex items-start gap-3">
         <Avatar className="h-8 w-8">
-          <AvatarImage src={user.avatar_url} alt="Your avatar" />
-          <AvatarFallback>{user.email?.charAt(0).toUpperCase() || 'U'}</AvatarFallback>
+          <AvatarImage src={avatarUrl} alt="Your avatar" />
+          <AvatarFallback>{userInitial}</AvatarFallback>
         </Avatar>
         <div className="flex-1">
           <Textarea

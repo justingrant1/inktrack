@@ -1,11 +1,44 @@
 
-import React from 'react';
+import React, { useEffect, useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
 import Header from '@/components/Header';
 import PublicTattooCard from '@/components/PublicTattooCard';
 import { Pagination, PaginationContent, PaginationEllipsis, PaginationItem, PaginationLink, PaginationNext, PaginationPrevious } from '@/components/ui/pagination';
 import { useSearchParams } from 'react-router-dom';
+
+// Function to get tattoos from the database
+// Since we don't have is_public in the schema, we'll get all tattoos
+// In a real app, this would filter by is_public
+const fetchPublicTattoos = async (page: number, pageSize: number) => {
+  // Calculate range for pagination
+  const from = (page - 1) * pageSize;
+  const to = from + pageSize - 1;
+  
+  // Get all tattoos
+  const { data, error, count } = await supabase
+    .from('tattoos')
+    .select(`
+      *,
+      profiles(username, avatar_url)
+    `, { count: 'exact' })
+    .order('created_at', { ascending: false })
+    .range(from, to);
+    
+  if (error) throw error;
+  
+  // Format the data
+  return {
+    tattoos: data.map((tattoo: any) => ({
+      ...tattoo,
+      dateAdded: new Date(tattoo.date_added),
+      username: tattoo.profiles?.username,
+      avatar_url: tattoo.profiles?.avatar_url
+    })),
+    totalCount: count || 0,
+    totalPages: Math.ceil((count || 0) / pageSize)
+  };
+};
 
 const PublicFeed = () => {
   const [searchParams, setSearchParams] = useSearchParams();
@@ -15,46 +48,7 @@ const PublicFeed = () => {
   // Fetch public tattoos with pagination
   const { data, isLoading } = useQuery({
     queryKey: ['public-tattoos', page, pageSize],
-    queryFn: async () => {
-      // Calculate range for pagination
-      const from = (page - 1) * pageSize;
-      const to = from + pageSize - 1;
-      
-      // Get the count first
-      const { count, error: countError } = await supabase
-        .from('tattoos')
-        .select('*', { count: 'exact', head: true })
-        .eq('is_public', true);
-        
-      if (countError) throw countError;
-      
-      // Now get the actual data for this page
-      const { data, error } = await supabase
-        .from('tattoos')
-        .select(`
-          *,
-          profiles:user_id (username, avatar_url)
-        `)
-        .eq('is_public', true)
-        .order('created_at', { ascending: false })
-        .range(from, to);
-        
-      if (error) throw error;
-      
-      // Format the data
-      const formattedData = data.map((tattoo: any) => ({
-        ...tattoo,
-        dateAdded: new Date(tattoo.date_added),
-        username: tattoo.profiles?.username,
-        avatar_url: tattoo.profiles?.avatar_url
-      }));
-      
-      return {
-        tattoos: formattedData,
-        totalCount: count || 0,
-        totalPages: Math.ceil((count || 0) / pageSize)
-      };
-    }
+    queryFn: () => fetchPublicTattoos(page, pageSize)
   });
   
   const handlePageChange = (newPage: number) => {

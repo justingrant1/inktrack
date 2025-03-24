@@ -1,7 +1,7 @@
 
 import React from 'react';
 import { useAuth } from '@/context/AuthContext';
-import { Card, CardContent, CardFooter } from '@/components/ui/card';
+import { Card, CardContent } from '@/components/ui/card';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { formatDistanceToNow } from 'date-fns';
 
@@ -19,21 +19,25 @@ interface CommentProps {
 const Comment: React.FC<CommentProps> = ({ comment }) => {
   const { user } = useAuth();
   const isCurrentUser = user?.id === comment.user_id;
+  
+  // Fallback for missing avatar or username
+  const avatarUrl = comment.avatar_url || `https://ui-avatars.com/api/?name=${comment.username?.charAt(0) || 'U'}&background=random`;
+  const displayName = comment.username || 'Anonymous User';
 
   return (
     <Card className={`mb-3 ${isCurrentUser ? 'border-blue-200' : ''}`}>
       <CardContent className="p-3">
         <div className="flex items-start gap-3">
           <Avatar className="h-8 w-8">
-            <AvatarImage src={comment.avatar_url} alt={comment.username || 'User'} />
+            <AvatarImage src={avatarUrl} alt={displayName} />
             <AvatarFallback>
-              {(comment.username || 'U').charAt(0).toUpperCase()}
+              {displayName.charAt(0).toUpperCase()}
             </AvatarFallback>
           </Avatar>
           <div className="flex-1">
             <div className="flex items-baseline justify-between">
               <p className="font-medium text-sm">
-                {comment.username || 'Anonymous User'}
+                {displayName}
                 {isCurrentUser && <span className="text-xs ml-2 text-muted-foreground">(You)</span>}
               </p>
               <span className="text-xs text-muted-foreground">
