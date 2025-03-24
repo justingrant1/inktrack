@@ -16,7 +16,7 @@ const fetchPublicTattoos = async (page: number, pageSize: number) => {
   console.log(`Fetching public tattoos: page ${page}, range ${from}-${to}`);
   
   try {
-    // Find all public tattoo keys in localStorage first
+    // Find all public tattoo keys in localStorage to determine which tattoos are public
     const keys = Object.keys(localStorage);
     const publicTattooIds = keys
       .filter(key => key.startsWith('tattoo_public_') && localStorage.getItem(key) === 'true')
@@ -33,75 +33,43 @@ const fetchPublicTattoos = async (page: number, pageSize: number) => {
       };
     }
     
-    // Create mock tattoos from localStorage when Supabase doesn't return data
-    // This ensures we always show something if items are marked as public
-    const mockTattoos = publicTattooIds.map(id => {
-      // Try to get additional data from localStorage if available
-      const tattooData = localStorage.getItem(`tattoo_data_${id}`);
-      const parsedData = tattooData ? JSON.parse(tattooData) : {};
-      
-      return {
-        id,
-        title: parsedData.title || `Tattoo ${id.substring(0, 6)}`,
-        artist: parsedData.artist || 'Unknown Artist',
-        location: parsedData.location || 'Unknown Location',
-        meaning: parsedData.meaning || '',
-        image: parsedData.image || null,
-        created_at: parsedData.created_at || new Date().toISOString(),
-        date_added: parsedData.date_added || new Date().toISOString(),
-        user_id: parsedData.user_id || 'anonymous',
-        username: parsedData.username || `user_${id.substring(0, 6)}`,
-        avatar_url: parsedData.avatar_url || null,
-        isPublic: true,
-        dateAdded: new Date(parsedData.created_at || parsedData.date_added || new Date().toISOString())
-      };
-    });
-    
-    console.log(`Created ${mockTattoos.length} mock tattoos from localStorage`);
-    
-    // Fetch all tattoos from Supabase as a backup, but use our mock data as primary source
+    // Fetch all tattoos from Supabase
     const { data, error } = await supabase
       .from('tattoos')
       .select('*')
-      .order('created_at', { ascending: false })
-      .range(from, to);
+      .order('created_at', { ascending: false });
       
     if (error) {
       console.error('Error fetching tattoos from Supabase:', error);
-      // Continue with mock data
-    } else {
-      console.log(`Fetched ${data?.length || 0} tattoos from Supabase as backup`);
-      
-      // If we have Supabase data, enhance our mock data with it
-      if (data && data.length > 0) {
-        // Map through each public ID and try to find matching Supabase record
-        publicTattooIds.forEach(id => {
-          const supabaseMatch = data.find(t => t.id === id);
-          if (supabaseMatch) {
-            // Find and update the corresponding mock tattoo
-            const mockIndex = mockTattoos.findIndex(m => m.id === id);
-            if (mockIndex !== -1) {
-              mockTattoos[mockIndex] = {
-                ...mockTattoos[mockIndex], 
-                ...supabaseMatch,
-                isPublic: true,
-                dateAdded: new Date(supabaseMatch.created_at || supabaseMatch.date_added)
-              };
-            }
-          }
-        });
-      }
+      return {
+        tattoos: [],
+        totalCount: 0,
+        totalPages: 0
+      };
     }
     
+    console.log(`Fetched ${data?.length || 0} tattoos from Supabase`);
+    
+    // Filter tattoos to only include those marked as public in localStorage
+    const publicTattoos = data
+      .filter(tattoo => publicTattooIds.includes(tattoo.id))
+      .map(tattoo => ({
+        ...tattoo,
+        isPublic: true,
+        dateAdded: new Date(tattoo.created_at || tattoo.date_added)
+      }));
+    
+    console.log(`Found ${publicTattoos.length} public tattoos after filtering`);
+    
     // Sort by date (newest first)
-    const sortedTattoos = mockTattoos.sort((a, b) => 
+    const sortedTattoos = publicTattoos.sort((a, b) => 
       new Date(b.dateAdded).getTime() - new Date(a.dateAdded).getTime()
     );
     
     // Paginate the results
     const paginatedTattoos = sortedTattoos.slice(from, to + 1);
     
-    console.log(`Final display: ${paginatedTattoos.length} public tattoos`);
+    console.log(`Final display: ${paginatedTattoos.length} real public tattoos`);
     
     return {
       tattoos: paginatedTattoos,
@@ -110,7 +78,6 @@ const fetchPublicTattoos = async (page: number, pageSize: number) => {
     };
   } catch (error) {
     console.error('Error in fetchPublicTattoos:', error);
-    // Return empty data instead of throwing, so the UI can still render
     return {
       tattoos: [],
       totalCount: 0,
@@ -181,22 +148,7 @@ const PublicFeed = () => {
     console.log('Public tattoo keys found:', publicTattooKeys);
     console.log('Public tattoo IDs:', publicTattooIds);
     
-    // Display all localStorage data for debugging
-    publicTattooKeys.forEach(key => {
-      console.log(`${key}: ${localStorage.getItem(key)}`);
-    });
-    
     setPublicTattooCount(publicTattooIds.length);
-    
-    // Save mock data for each public tattoo ID
-    publicTattooIds.forEach(id => {
-      if (!localStorage.getItem(`tattoo_data_${id}`)) {
-        localStorage.setItem(`tattoo_data_${id}`, JSON.stringify({
-          title: `Tattoo ${id.substring(0, 6)}`,
-          created_at: new Date().toISOString()
-        }));
-      }
-    });
     
     if (showToast) {
       const message = `Found ${publicTattooIds.length} public tattoos in localStorage`;
