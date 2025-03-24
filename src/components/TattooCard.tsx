@@ -16,7 +16,7 @@ interface TattooCardProps {
     location: string;
     meaning: string;
     lastRefreshed?: Date;
-    isPublic?: boolean;
+    isPublic: boolean;
   };
   onEdit: (id: string) => void;
 }

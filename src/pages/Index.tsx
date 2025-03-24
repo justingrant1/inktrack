@@ -1,3 +1,4 @@
+
 import React, { useState, useEffect } from 'react';
 import { useToast } from "@/hooks/use-toast";
 import { toast } from "sonner";
@@ -21,7 +22,7 @@ interface Tattoo {
   meaning: string;
   lastRefreshed?: Date;
   imageFile?: File;
-  isPublic?: boolean;
+  isPublic: boolean;
 }
 
 const Index = () => {
@@ -56,7 +57,8 @@ const Index = () => {
         location: tattoo.location || '',
         meaning: tattoo.meaning || '',
         lastRefreshed: tattoo.last_refreshed ? new Date(tattoo.last_refreshed) : undefined,
-        isPublic: tattoo.is_public || false
+        // Use a custom property in local storage to track public/private state until schema is updated
+        isPublic: localStorage.getItem(`tattoo_public_${tattoo.id}`) === 'true' || false
       }));
     },
     enabled: !!user,
@@ -127,7 +129,7 @@ const Index = () => {
         date_added: newTattoo.dateAdded.toISOString(),
         last_refreshed: newTattoo.lastRefreshed?.toISOString(),
         user_id: user.id,
-        is_public: newTattoo.isPublic || false
+        // is_public: newTattoo.isPublic || false - This doesn't exist in the schema yet
       };
       
       if (editingTattoo) {
@@ -137,6 +139,10 @@ const Index = () => {
           .eq('id', newTattoo.id);
         
         if (error) throw error;
+        
+        // Store isPublic status in localStorage until schema is updated
+        localStorage.setItem(`tattoo_public_${newTattoo.id}`, newTattoo.isPublic.toString());
+        
         return { ...newTattoo, image: imageUrl };
       } else {
         const { data, error } = await supabase
@@ -146,12 +152,16 @@ const Index = () => {
           .single();
         
         if (error) throw error;
+        
+        // Store isPublic status in localStorage until schema is updated
+        localStorage.setItem(`tattoo_public_${data.id}`, newTattoo.isPublic.toString());
+        
         return {
           ...newTattoo,
           id: data.id,
           dateAdded: new Date(data.date_added),
           image: imageUrl,
-          isPublic: data.is_public
+          isPublic: newTattoo.isPublic
         };
       }
     },

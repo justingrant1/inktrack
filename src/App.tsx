@@ -17,9 +17,9 @@ import { toast } from "sonner";
 
 const queryClient = new QueryClient();
 
-// Initialize local storage for comments and likes
+// Initialize local storage for comments, likes, and public/private status
 const initializeLocalStorage = () => {
-  console.log('Initializing local storage for comments and likes');
+  console.log('Initializing local storage for comments, likes, and visibility status');
   // In a real app, this would be handled by Supabase
   // For now, we'll simulate it with localStorage
   
