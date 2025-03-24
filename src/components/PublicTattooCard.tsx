@@ -61,14 +61,16 @@ const PublicTattooCard = ({ tattoo }: PublicTattooCardProps) => {
     console.error('Invalid date for tattoo:', tattoo.id);
   }
   
-  // Simulate fetching likes using local storage
-  const { data: likesData } = useQuery({
-    queryKey: ['tattoo-likes', tattoo.id],
-    queryFn: async () => {
-      // Simulate API call delay
-      await new Promise(resolve => setTimeout(resolve, 100));
-      
+  // Get likes and comments data directly
+  const [likesCount, setLikesCount] = useState(0);
+  const [comments, setComments] = useState<any[]>([]);
+  
+  // Load likes and comments when component mounts
+  useEffect(() => {
+    try {
+      // Get likes for this tattoo
       const likes = getStoredLikes(tattoo.id);
+      setLikesCount(likes.length);
       
       // Check if current user has liked this tattoo
       if (user) {
@@ -76,25 +78,14 @@ const PublicTattooCard = ({ tattoo }: PublicTattooCardProps) => {
         setLiked(userLiked);
       }
       
-      return {
-        count: likes.length,
-        userHasLiked: user ? likes.some((like: any) => like.user_id === user.id) : false
-      };
-    },
-    staleTime: 0 // Don't cache results
-  });
-  
-  // Simulate fetching comments using local storage
-  const { data: comments = [] } = useQuery({
-    queryKey: ['tattoo-comments', tattoo.id],
-    queryFn: async () => {
-      // Simulate API call delay
-      await new Promise(resolve => setTimeout(resolve, 100));
+      // Get comments for this tattoo
+      const tattooComments = getStoredComments(tattoo.id);
+      setComments(tattooComments);
       
-      return getStoredComments(tattoo.id);
-    },
-    staleTime: 0 // Don't cache results
-  });
+    } catch (error) {
+      console.error('Error loading likes/comments:', error);
+    }
+  }, [tattoo.id, user]);
   
   // Add comment mutation using local storage
   const addCommentMutation = useMutation({
@@ -170,11 +161,16 @@ const PublicTattooCard = ({ tattoo }: PublicTattooCardProps) => {
   
   // Initialize likes and comments for this tattoo if they don't exist yet
   useEffect(() => {
-    if (!localStorage.getItem(`tattoo_likes_${tattoo.id}`)) {
-      localStorage.setItem(`tattoo_likes_${tattoo.id}`, JSON.stringify([]));
-    }
-    if (!localStorage.getItem(`tattoo_comments_${tattoo.id}`)) {
-      localStorage.setItem(`tattoo_comments_${tattoo.id}`, JSON.stringify([]));
+    try {
+      if (!localStorage.getItem(`tattoo_likes_${tattoo.id}`)) {
+        localStorage.setItem(`tattoo_likes_${tattoo.id}`, JSON.stringify([]));
+      }
+      if (!localStorage.getItem(`tattoo_comments_${tattoo.id}`)) {
+        localStorage.setItem(`tattoo_comments_${tattoo.id}`, JSON.stringify([]));
+      }
+    } catch (error) {
+      console.error('Error initializing likes/comments:', error);
+      // Continue execution even if localStorage is not available
     }
   }, [tattoo.id]);
   
@@ -253,7 +249,7 @@ const PublicTattooCard = ({ tattoo }: PublicTattooCardProps) => {
             onClick={handleToggleLike}
           >
             <Heart className={`h-4 w-4 ${liked ? 'fill-red-500 text-red-500' : ''}`} />
-            {likesData?.count || 0}
+            {likesCount}
           </Button>
           
           <div className="flex items-center gap-2 text-sm text-muted-foreground">
@@ -275,11 +271,17 @@ const PublicTattooCard = ({ tattoo }: PublicTattooCardProps) => {
                   <Comment key={comment.id} comment={comment} />
                 ))}
                 
-                <CommentForm 
-                  tattooId={tattoo.id}
-                  onSubmit={handleAddComment}
-                  isLoading={addCommentMutation.isPending}
-                />
+                {user ? (
+                  <CommentForm 
+                    tattooId={tattoo.id}
+                    onSubmit={handleAddComment}
+                    isLoading={addCommentMutation.isPending}
+                  />
+                ) : (
+                  <div className="py-2 text-sm text-center text-muted-foreground">
+                    <a href="/auth" className="text-primary hover:underline">Sign in</a> to add a comment
+                  </div>
+                )}
               </div>
             </AccordionContent>
           </AccordionItem>

@@ -27,25 +27,52 @@ const PublicFeed = () => {
     type: 'info'
   });
   
-  const { 
-    data, 
-    fetchNextPage, 
-    hasNextPage, 
-    isFetchingNextPage,
-    refetch,
-    isInitialLoading
-  } = useInfiniteQuery({
-    queryKey: ['public-tattoos-infinite'],
-    queryFn: ({ pageParam }) => fetchPublicTattoos(pageParam, pageSize),
-    initialPageParam: 1,
-    getNextPageParam: (lastPage, allPages) => {
-      const nextPage = allPages.length + 1;
-      return nextPage <= lastPage.totalPages ? nextPage : undefined;
-    },
-    staleTime: 0, // Don't cache results
-    refetchOnMount: true, // Always refetch when component mounts
-    refetchOnWindowFocus: false // Prevent refetch on window focus
-  });
+  // Use state instead of React Query to avoid authentication issues
+  const [allTattoos, setAllTattoos] = useState<any[]>([]);
+  const [hasMore, setHasMore] = useState(false);
+  const [pageCount, setPageCount] = useState(1);
+  const [totalCount, setTotalCount] = useState(0);
+  const [isQueryLoading, setIsQueryLoading] = useState(true);
+  
+  // Function to fetch public tattoos
+  const fetchTattooData = async (pageNumber: number = 1) => {
+    setIsQueryLoading(true);
+    try {
+      console.log(`Manually fetching public tattoos for page ${pageNumber}`);
+      const result = await fetchPublicTattoos(pageNumber, pageSize);
+      
+      if (pageNumber === 1) {
+        // First page, replace all data
+        setAllTattoos(result.tattoos);
+      } else {
+        // Subsequent pages, append data
+        setAllTattoos(prev => [...prev, ...result.tattoos]);
+      }
+      
+      setTotalCount(result.totalCount);
+      setHasMore(pageNumber < result.totalPages);
+      setPageCount(result.totalPages);
+      return result;
+    } catch (error) {
+      console.error("Error fetching public tattoos:", error);
+      return { tattoos: [], totalCount: 0, totalPages: 0 };
+    } finally {
+      setIsQueryLoading(false);
+    }
+  };
+  
+  // Replacement for refetch function
+  const refetch = async () => {
+    await fetchTattooData(1);
+  };
+  
+  // Replacement for fetchNextPage
+  const fetchNextPage = async () => {
+    if (hasMore) {
+      const currentPage = Math.ceil(allTattoos.length / pageSize) + 1;
+      await fetchTattooData(currentPage);
+    }
+  };
   
   // Initial setup - once the query is ready
   useEffect(() => {
@@ -71,33 +98,42 @@ const PublicFeed = () => {
     return () => clearInterval(timer);
   }, []);
   
-  // Set loading state when we start
+  // Set loading state when we start and load the data
   useEffect(() => {
     setIsLoading(true);
-    const timer = setTimeout(() => {
-      setIsLoading(false);
-      setDebugInfo({
-        message: publicTattooCount > 0 
-          ? `Found ${publicTattooCount} public tattoos` 
-          : 'No public tattoos found. Try making some tattoos public!',
-        type: publicTattooCount > 0 ? 'success' : 'info'
-      });
-    }, 2000);
     
-    return () => clearTimeout(timer);
-  }, [publicTattooCount]);
+    // Initialize and check for public tattoos
+    checkLocalStorageForPublicTattoos(setPublicTattooCount, refetch, setDebugInfo, false);
+    
+    // Initial data load
+    fetchTattooData(1).then(() => {
+      setTimeout(() => {
+        setIsLoading(false);
+        setDebugInfo({
+          message: publicTattooCount > 0 
+            ? `Found ${publicTattooCount} public tattoos` 
+            : 'No public tattoos found. Try making some tattoos public!',
+          type: publicTattooCount > 0 ? 'success' : 'info'
+        });
+      }, 1500);
+    });
+    
+    return () => {};
+  }, []);
   
+  // Load more when scrolling
   useEffect(() => {
-    if (inView && hasNextPage && !isFetchingNextPage) {
+    if (inView && hasMore && !isQueryLoading) {
       fetchNextPage();
     }
-  }, [inView, fetchNextPage, hasNextPage, isFetchingNextPage]);
+  }, [inView, hasMore, isQueryLoading]);
   
-  const allTattoos = data?.pages.flatMap(page => page.tattoos) || [];
   console.log('All tattoos to display:', allTattoos.length, allTattoos);
 
-  const handleRefreshGallery = () => {
-    checkLocalStorageForPublicTattoos(setPublicTattooCount, refetch, setDebugInfo, true);
+  const handleRefreshGallery = async () => {
+    setDebugInfo({ message: "Refreshing gallery...", type: 'info' });
+    await checkLocalStorageForPublicTattoos(setPublicTattooCount, refetch, setDebugInfo, true);
+    toast.success("Gallery refreshed");
   };
 
   return (
@@ -129,7 +165,7 @@ const PublicFeed = () => {
           
           <DebugInfo message={debugInfo.message} type={debugInfo.type} />
           
-          {isLoading && (
+          {(isLoading || isQueryLoading) && (
             <LoadingIndicator 
               progress={loadingProgress} 
               message="Loading public tattoos..." 
@@ -140,16 +176,16 @@ const PublicFeed = () => {
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 mb-8">
               <TattooGrid 
                 tattoos={allTattoos}
-                isLoading={isLoading}
-                isInitialLoading={isInitialLoading}
+                isLoading={isLoading || isQueryLoading}
+                isInitialLoading={isLoading}
                 publicTattooCount={publicTattooCount}
                 onRefresh={handleRefreshGallery}
               />
             </div>
             
             <LoadMoreIndicator 
-              hasNextPage={hasNextPage || false}
-              isFetchingNextPage={isFetchingNextPage}
+              hasNextPage={hasMore}
+              isFetchingNextPage={isQueryLoading && allTattoos.length > 0}
               loadMoreRef={loadMoreRef}
               allTattoosLength={allTattoos.length}
             />
