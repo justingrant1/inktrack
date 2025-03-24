@@ -6,6 +6,9 @@ import Header from '@/components/Header';
 import TattooCard from '@/components/TattooCard';
 import TattooForm from '@/components/TattooForm';
 import EmptyState from '@/components/EmptyState';
+import { useAuth } from '@/context/AuthContext';
+import { supabase } from '@/integrations/supabase/client';
+import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 
 interface Tattoo {
   id: string;
@@ -18,62 +21,94 @@ interface Tattoo {
   lastRefreshed?: Date;
 }
 
-// Sample tattoo data for demonstration
-const sampleTattoos: Tattoo[] = [
-  {
-    id: '1',
-    title: 'Phoenix Rising',
-    image: 'https://images.unsplash.com/photo-1542856391-010fb87dcfed?q=80&w=2500&auto=format&fit=crop',
-    dateAdded: new Date('2022-04-15'),
-    artist: 'Jane Smith',
-    location: 'Left Shoulder',
-    meaning: 'Represents personal transformation and rebirth after a difficult period.',
-    lastRefreshed: new Date('2023-05-20')
-  },
-  {
-    id: '2',
-    title: 'Geometric Wolf',
-    image: 'https://images.unsplash.com/photo-1527155781227-075e7d42cea0?q=80&w=2500&auto=format&fit=crop',
-    dateAdded: new Date('2021-10-08'),
-    artist: 'Mike Rodriguez',
-    location: 'Right Forearm',
-    meaning: 'Symbolizes the balance between human civilization and wild nature.',
-  }
-];
-
 const Index = () => {
-  const [tattoos, setTattoos] = useState<Tattoo[]>([]);
   const [isFormOpen, setIsFormOpen] = useState(false);
   const [editingTattoo, setEditingTattoo] = useState<Tattoo | null>(null);
+  const { user } = useAuth();
+  const queryClient = useQueryClient();
 
-  // Load tattoos from localStorage on initial render
-  useEffect(() => {
-    const savedTattoos = localStorage.getItem('tattoos');
-    if (savedTattoos) {
-      try {
-        const parsedTattoos = JSON.parse(savedTattoos);
-        // Convert string dates back to Date objects
-        const formattedTattoos = parsedTattoos.map((tattoo: any) => ({
-          ...tattoo,
-          dateAdded: new Date(tattoo.dateAdded),
-          lastRefreshed: tattoo.lastRefreshed ? new Date(tattoo.lastRefreshed) : undefined
-        }));
-        setTattoos(formattedTattoos);
-      } catch (error) {
-        console.error('Error parsing tattoos from localStorage:', error);
-        // If there's an error parsing, use sample data
-        setTattoos(sampleTattoos);
+  // Fetch tattoos from Supabase
+  const { data: tattoos = [], isLoading } = useQuery({
+    queryKey: ['tattoos', user?.id],
+    queryFn: async () => {
+      if (!user) return [];
+      
+      const { data, error } = await supabase
+        .from('tattoos')
+        .select('*')
+        .order('created_at', { ascending: false });
+      
+      if (error) {
+        console.error('Error fetching tattoos:', error);
+        toast.error('Failed to load tattoos');
+        return [];
       }
-    } else {
-      // If no saved tattoos, use sample data
-      setTattoos(sampleTattoos);
-    }
-  }, []);
+      
+      // Transform the data to match our Tattoo interface
+      return data.map((tattoo: any) => ({
+        id: tattoo.id,
+        title: tattoo.title,
+        image: tattoo.image,
+        dateAdded: new Date(tattoo.date_added),
+        artist: tattoo.artist || '',
+        location: tattoo.location || '',
+        meaning: tattoo.meaning || '',
+        lastRefreshed: tattoo.last_refreshed ? new Date(tattoo.last_refreshed) : undefined
+      }));
+    },
+    enabled: !!user,
+  });
 
-  // Save tattoos to localStorage whenever they change
-  useEffect(() => {
-    localStorage.setItem('tattoos', JSON.stringify(tattoos));
-  }, [tattoos]);
+  // Add/update tattoo mutation
+  const saveTattooMutation = useMutation({
+    mutationFn: async (newTattoo: Tattoo) => {
+      if (!user) throw new Error('User not authenticated');
+      
+      const tattooData = {
+        title: newTattoo.title,
+        image: newTattoo.image,
+        artist: newTattoo.artist,
+        location: newTattoo.location,
+        meaning: newTattoo.meaning,
+        user_id: user.id,
+      };
+      
+      if (editingTattoo) {
+        // Update existing tattoo
+        const { error } = await supabase
+          .from('tattoos')
+          .update(tattooData)
+          .eq('id', newTattoo.id);
+        
+        if (error) throw error;
+        return newTattoo;
+      } else {
+        // Insert new tattoo
+        const { data, error } = await supabase
+          .from('tattoos')
+          .insert(tattooData)
+          .select('*')
+          .single();
+        
+        if (error) throw error;
+        return {
+          ...newTattoo,
+          id: data.id,
+          dateAdded: new Date(data.date_added),
+        };
+      }
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['tattoos', user?.id] });
+      setEditingTattoo(null);
+      setIsFormOpen(false);
+      toast.success(editingTattoo ? "Tattoo updated successfully!" : "New tattoo added!");
+    },
+    onError: (error) => {
+      console.error('Error saving tattoo:', error);
+      toast.error('Failed to save tattoo. Please try again.');
+    },
+  });
 
   const handleAddNew = () => {
     setEditingTattoo(null);
@@ -89,16 +124,7 @@ const Index = () => {
   };
 
   const handleSaveTattoo = (newTattoo: Tattoo) => {
-    if (editingTattoo) {
-      // Updating existing tattoo
-      setTattoos(tattoos.map(t => t.id === newTattoo.id ? newTattoo : t));
-      toast.success("Tattoo updated successfully!");
-    } else {
-      // Adding new tattoo
-      setTattoos([newTattoo, ...tattoos]);
-      toast.success("New tattoo added!");
-    }
-    setEditingTattoo(null);
+    saveTattooMutation.mutate(newTattoo);
   };
 
   return (
@@ -106,7 +132,11 @@ const Index = () => {
       <Header onAddNew={handleAddNew} />
       
       <main className="container py-6 animate-fade-in">
-        {tattoos.length === 0 ? (
+        {isLoading ? (
+          <div className="flex justify-center items-center py-12">
+            <div className="animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-primary"></div>
+          </div>
+        ) : tattoos.length === 0 ? (
           <EmptyState onAddNew={handleAddNew} />
         ) : (
           <>
