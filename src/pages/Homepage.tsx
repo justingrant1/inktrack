@@ -1,10 +1,13 @@
 
 import React from 'react';
 import { Link } from 'react-router-dom';
-import { ArrowRight, Sparkles, Shield, Clock, Images } from 'lucide-react';
+import { ArrowRight, Sparkles, Shield, Clock, Images, LogOut } from 'lucide-react';
 import { Button } from '@/components/ui/button';
+import { useAuth } from '@/context/AuthContext';
 
 const Homepage = () => {
+  const { user, signOut } = useAuth();
+
   return (
     <div className="min-h-screen bg-background text-foreground">
       {/* Navigation */}
@@ -19,12 +22,27 @@ const Homepage = () => {
             <Button variant="ghost" asChild>
               <Link to="/feed">Explore Gallery</Link>
             </Button>
-            <Button variant="ghost" asChild>
-              <Link to="/app">Sign In</Link>
-            </Button>
-            <Button asChild className="hover-scale">
-              <Link to="/app">Get Started</Link>
-            </Button>
+            
+            {user ? (
+              <>
+                <Button variant="ghost" asChild>
+                  <Link to="/app">My Collection</Link>
+                </Button>
+                <Button variant="outline" onClick={signOut} className="hover-scale">
+                  <LogOut className="mr-2 h-4 w-4" />
+                  Sign Out
+                </Button>
+              </>
+            ) : (
+              <>
+                <Button variant="ghost" asChild>
+                  <Link to="/auth">Sign In</Link>
+                </Button>
+                <Button asChild className="hover-scale">
+                  <Link to="/auth">Get Started</Link>
+                </Button>
+              </>
+            )}
           </div>
         </div>
       </header>
@@ -101,11 +119,19 @@ const Homepage = () => {
             Join thousands of tattoo enthusiasts who use Inked Chronicles to document their tattoo journey.
           </p>
           <div className="flex flex-col sm:flex-row justify-center gap-4">
-            <Button size="lg" asChild className="hover-scale">
-              <Link to="/app">
-                Get Started Now
-              </Link>
-            </Button>
+            {user ? (
+              <Button size="lg" asChild className="hover-scale">
+                <Link to="/app">
+                  Go to My Collection
+                </Link>
+              </Button>
+            ) : (
+              <Button size="lg" asChild className="hover-scale">
+                <Link to="/auth">
+                  Get Started Now
+                </Link>
+              </Button>
+            )}
             <Button size="lg" variant="outline" asChild className="hover-scale">
               <Link to="/feed" className="flex items-center gap-2">
                 <Images className="h-4 w-4" /> Browse Public Gallery
