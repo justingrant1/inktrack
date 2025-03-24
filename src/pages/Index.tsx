@@ -11,6 +11,7 @@ import { uploadTattooImage } from '@/integrations/supabase/storage';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import SubscriptionBanner from '@/components/SubscriptionBanner';
 import { SubscriptionTier, hasReachedTattooLimit } from '@/utils/subscriptionTiers';
+import { isUserPremium } from '@/utils/stripe';
 
 interface Tattoo {
   id: string;
@@ -68,23 +69,8 @@ const Index = () => {
     const fetchUserTier = async () => {
       if (!user) return;
       
-      const { data, error } = await supabase
-        .from('profiles')
-        .select('username')
-        .eq('id', user.id)
-        .single();
-      
-      if (error && error.code !== 'PGRST116') {
-        console.error('Error fetching user profile:', error);
-        return;
-      }
-      
-      setUserTier('free');
-      
-      const storedTier = localStorage.getItem('subscription_tier');
-      if (storedTier === 'premium') {
-        setUserTier('premium');
-      }
+      const isPremium = isUserPremium();
+      setUserTier(isPremium ? 'premium' : 'free');
     };
     
     fetchUserTier();

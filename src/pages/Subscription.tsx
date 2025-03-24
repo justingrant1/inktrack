@@ -1,3 +1,4 @@
+
 import React from 'react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from '@/components/ui/card';
@@ -50,6 +51,7 @@ const Subscription = () => {
       const processCheckout = async () => {
         setIsLoading(true);
         try {
+          // This is the only place where we should be setting the subscription tier to premium
           const success = await handleStripeCheckoutSuccess(sessionId);
           if (success) {
             // Clean up the URL
