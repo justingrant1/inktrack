@@ -27,23 +27,6 @@ const PublicFeed = () => {
     type: 'info'
   });
   
-  useEffect(() => {
-    checkLocalStorageForPublicTattoos(setPublicTattooCount, refetch, setDebugInfo, false);
-    
-    // Simulate loading progress
-    const timer = setInterval(() => {
-      setLoadingProgress(prev => {
-        if (prev >= 100) {
-          clearInterval(timer);
-          return 100;
-        }
-        return prev + 10;
-      });
-    }, 200);
-    
-    return () => clearInterval(timer);
-  }, []);
-  
   const { 
     data, 
     fetchNextPage, 
@@ -64,18 +47,45 @@ const PublicFeed = () => {
     refetchOnWindowFocus: false // Prevent refetch on window focus
   });
   
+  // Initial setup - once the query is ready
   useEffect(() => {
-    console.log('PublicFeed mounted, triggering refetch');
-    // Force clear the query cache and refetch
-    refetch();
-    checkLocalStorageForPublicTattoos(setPublicTattooCount, refetch, setDebugInfo, false);
-    
-    // Set loading state
-    setIsLoading(true);
-    setTimeout(() => {
-      setIsLoading(false);
-    }, 2000);
+    // Initialize public status for all tattoos and check for public ones
+    if (refetch) {
+      checkLocalStorageForPublicTattoos(setPublicTattooCount, refetch, setDebugInfo, false);
+      console.log('PublicFeed component mounted, triggering initial load');
+    }
   }, [refetch]);
+  
+  // Simulate loading progress
+  useEffect(() => {
+    const timer = setInterval(() => {
+      setLoadingProgress(prev => {
+        if (prev >= 100) {
+          clearInterval(timer);
+          return 100;
+        }
+        return prev + 10;
+      });
+    }, 200);
+    
+    return () => clearInterval(timer);
+  }, []);
+  
+  // Set loading state when we start
+  useEffect(() => {
+    setIsLoading(true);
+    const timer = setTimeout(() => {
+      setIsLoading(false);
+      setDebugInfo({
+        message: publicTattooCount > 0 
+          ? `Found ${publicTattooCount} public tattoos` 
+          : 'No public tattoos found. Try making some tattoos public!',
+        type: publicTattooCount > 0 ? 'success' : 'info'
+      });
+    }, 2000);
+    
+    return () => clearTimeout(timer);
+  }, [publicTattooCount]);
   
   useEffect(() => {
     if (inView && hasNextPage && !isFetchingNextPage) {
