@@ -72,4 +72,23 @@
   .hover-scale {
     @apply transition-transform duration-200 hover:scale-105;
   }
+  
+  .text-gradient {
+    @apply bg-gradient-to-br from-white via-white/90 to-white/70 bg-clip-text text-transparent;
+  }
+  
+  .text-gradient-primary {
+    @apply bg-gradient-to-br from-primary via-primary/80 to-primary/60 bg-clip-text text-transparent;
+  }
+  
+  /* Smooth scrolling for the feed */
+  .smooth-scroll {
+    @apply scroll-smooth scrollbar-thin scrollbar-thumb-primary/60 scrollbar-track-transparent;
+  }
+  
+  /* Card hover effect */
+  .card-hover {
+    @apply hover:ring-2 hover:ring-primary/50 hover:ring-offset-2 hover:ring-offset-background transition-all duration-300;
+  }
 }
+

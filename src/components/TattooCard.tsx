@@ -1,7 +1,7 @@
 
 import React from 'react';
 import { format } from 'date-fns';
-import { Pencil, Calendar, User, Globe, Lock } from 'lucide-react';
+import { Pencil, Calendar, User, Globe, Lock, MapPin } from 'lucide-react';
 import { Card, CardHeader, CardContent, CardFooter } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
@@ -23,12 +23,13 @@ interface TattooCardProps {
 
 const TattooCard = ({ tattoo, onEdit }: TattooCardProps) => {
   return (
-    <Card className="tattoo-card animate-fade-in">
+    <Card className="tattoo-card animate-fade-in overflow-hidden">
       <CardHeader className="p-4 pb-0">
         <div className="flex justify-between items-start">
           <div>
             <div className="flex gap-2 mb-2">
-              <Badge variant="outline" className="mb-2">
+              <Badge variant="outline" className="mb-2 flex items-center gap-1">
+                <MapPin className="h-3 w-3" />
                 {tattoo.location}
               </Badge>
               {tattoo.isPublic ? (
@@ -61,7 +62,7 @@ const TattooCard = ({ tattoo, onEdit }: TattooCardProps) => {
             <img 
               src={tattoo.image} 
               alt={tattoo.title}
-              className="w-full h-44 object-cover"
+              className="w-full h-44 object-cover transition-transform hover:scale-105 duration-500"
               loading="lazy"
             />
           </div>
