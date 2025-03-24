@@ -84,12 +84,22 @@ const TattooForm: React.FC<TattooFormProps> = ({ open, onOpenChange, onSave, edi
       }
       
       setImageFile(file);
-      const url = URL.createObjectURL(file);
-      setImage(url);
+      
+      try {
+        const url = URL.createObjectURL(file);
+        setImage(url);
+      } catch (error) {
+        console.error("Error creating object URL:", error);
+        toast.error("Could not preview image");
+      }
     }
   };
   
   const removeImage = () => {
+    if (image && image.startsWith('blob:')) {
+      URL.revokeObjectURL(image);
+    }
+    
     setImage(undefined);
     setImageFile(undefined);
   };
@@ -106,6 +116,10 @@ const TattooForm: React.FC<TattooFormProps> = ({ open, onOpenChange, onSave, edi
     
     try {
       setIsSubmitting(true);
+      
+      if (imageFile) {
+        console.log("Image file ready for upload:", imageFile.name, imageFile.type, `${Math.round(imageFile.size / 1024)}KB`);
+      }
       
       await onSave({
         id: editingTattoo?.id,
@@ -262,8 +276,8 @@ const TattooForm: React.FC<TattooFormProps> = ({ open, onOpenChange, onSave, edi
             >
               Cancel
             </Button>
-            <Button type="submit">
-              {editingTattoo ? 'Update Tattoo' : 'Add Tattoo'}
+            <Button type="submit" disabled={isSubmitting}>
+              {isSubmitting ? 'Saving...' : editingTattoo ? 'Update Tattoo' : 'Add Tattoo'}
             </Button>
           </div>
         </form>
@@ -273,3 +287,4 @@ const TattooForm: React.FC<TattooFormProps> = ({ open, onOpenChange, onSave, edi
 };
 
 export default TattooForm;
+

@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect } from 'react';
 import { useToast } from "@/hooks/use-toast";
 import { toast } from "sonner";
@@ -58,7 +57,6 @@ const Index = () => {
         location: tattoo.location || '',
         meaning: tattoo.meaning || '',
         lastRefreshed: tattoo.last_refreshed ? new Date(tattoo.last_refreshed) : undefined,
-        // Use a custom property in local storage to track public/private state until schema is updated
         isPublic: localStorage.getItem(`tattoo_public_${tattoo.id}`) === 'true' || false
       }));
     },
@@ -103,24 +101,44 @@ const Index = () => {
           const fileExt = file.name.split('.').pop();
           const fileName = `${user.id}/${Date.now()}.${fileExt}`;
           
-          const { error: uploadError, data } = await supabase.storage
-            .from('tattoos')
-            .upload(fileName, file);
-            
-          if (uploadError) {
-            console.error('Error uploading image:', uploadError);
-            throw uploadError;
+          try {
+            const { error: uploadError, data } = await supabase.storage
+              .from('tattoos')
+              .upload(fileName, file);
+              
+            if (uploadError) {
+              if (uploadError.message === 'Bucket not found') {
+                console.log('Storage bucket not found. Storing image reference locally.');
+                
+                const blobUrl = URL.createObjectURL(file);
+                localStorage.setItem(`tattoo_image_${Date.now()}`, blobUrl);
+                imageUrl = blobUrl;
+              } else {
+                console.error('Error uploading image:', uploadError);
+                throw uploadError;
+              }
+            } else {
+              const { data: { publicUrl } } = supabase.storage
+                .from('tattoos')
+                .getPublicUrl(fileName);
+                
+              imageUrl = publicUrl;
+            }
+          } catch (error: any) {
+            if (error.message?.includes('Bucket not found') || error.error?.includes('Bucket not found')) {
+              console.log('Storage bucket not found. Storing image reference locally.');
+              
+              const blobUrl = URL.createObjectURL(file);
+              localStorage.setItem(`tattoo_image_${Date.now()}`, blobUrl);
+              imageUrl = blobUrl;
+            } else {
+              console.error('Error uploading image:', error);
+              throw error;
+            }
           }
-          
-          const { data: { publicUrl } } = supabase.storage
-            .from('tattoos')
-            .getPublicUrl(fileName);
-            
-          imageUrl = publicUrl;
         } catch (error) {
-          console.error('Error uploading image:', error);
-          toast.error('Failed to upload image');
-          throw error;
+          console.error('Error processing image:', error);
+          toast.warning('Image could not be uploaded, but your tattoo details will still be saved.');
         }
       }
       
@@ -133,7 +151,6 @@ const Index = () => {
         date_added: newTattoo.dateAdded.toISOString(),
         last_refreshed: newTattoo.lastRefreshed?.toISOString(),
         user_id: user.id,
-        // is_public: newTattoo.isPublic || false - This doesn't exist in the schema yet
       };
       
       let result;
@@ -149,7 +166,6 @@ const Index = () => {
           throw error;
         }
         
-        // Store isPublic status in localStorage until schema is updated
         localStorage.setItem(`tattoo_public_${newTattoo.id}`, newTattoo.isPublic.toString());
         
         result = { ...newTattoo, image: imageUrl };
@@ -169,7 +185,6 @@ const Index = () => {
           throw new Error('No data returned from insert operation');
         }
         
-        // Store isPublic status in localStorage until schema is updated
         localStorage.setItem(`tattoo_public_${data.id}`, newTattoo.isPublic.toString());
         
         result = {
@@ -272,4 +287,3 @@ const Index = () => {
 };
 
 export default Index;
-
