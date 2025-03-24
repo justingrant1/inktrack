@@ -1,6 +1,7 @@
 
 import React from 'react';
-import { PlusCircle, Menu } from 'lucide-react';
+import { Link } from 'react-router-dom';
+import { PlusCircle, Home } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 
 interface HeaderProps {
@@ -17,6 +18,11 @@ const Header: React.FC<HeaderProps> = ({ onAddNew }) => {
           </h1>
         </div>
         <div className="flex items-center gap-2">
+          <Button variant="ghost" size="icon" asChild className="mr-2">
+            <Link to="/">
+              <Home className="h-4 w-4" />
+            </Link>
+          </Button>
           <Button onClick={onAddNew} className="hover-scale">
             <PlusCircle className="mr-2 h-4 w-4" />
             Add New
