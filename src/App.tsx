@@ -9,6 +9,7 @@ import Index from "./pages/Index";
 import NotFound from "./pages/NotFound";
 import Auth from "./pages/Auth";
 import Subscription from "./pages/Subscription";
+import PublicFeed from "./pages/PublicFeed";
 import { AuthProvider } from "./context/AuthContext";
 import ProtectedRoute from "./components/ProtectedRoute";
 import { useEffect } from "react";
@@ -41,9 +42,17 @@ const initializeStorage = async () => {
   }
 };
 
+// Initialize database tables for comments and likes
+const initializeTables = async () => {
+  // This will be handled through Supabase migrations in a real app
+  // For now, we'll just log that the initialization is needed
+  console.log('Tables for comments and likes should be created in Supabase');
+};
+
 const App = () => {
   useEffect(() => {
     initializeStorage();
+    initializeTables();
   }, []);
 
   return (
@@ -56,6 +65,7 @@ const App = () => {
             <Routes>
               <Route path="/" element={<Homepage />} />
               <Route path="/auth" element={<Auth />} />
+              <Route path="/feed" element={<PublicFeed />} />
               <Route 
                 path="/app" 
                 element={

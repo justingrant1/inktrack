@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect } from 'react';
 import { useToast } from "@/hooks/use-toast";
 import { toast } from "sonner";
@@ -22,6 +21,7 @@ interface Tattoo {
   meaning: string;
   lastRefreshed?: Date;
   imageFile?: File;
+  isPublic?: boolean;
 }
 
 const Index = () => {
@@ -31,7 +31,6 @@ const Index = () => {
   const queryClient = useQueryClient();
   const [userTier, setUserTier] = useState<SubscriptionTier>('free');
 
-  // Fetch tattoos from Supabase
   const { data: tattoos = [], isLoading } = useQuery({
     queryKey: ['tattoos', user?.id],
     queryFn: async () => {
@@ -48,7 +47,6 @@ const Index = () => {
         return [];
       }
       
-      // Transform the data to match our Tattoo interface
       return data.map((tattoo: any) => ({
         id: tattoo.id,
         title: tattoo.title,
@@ -57,13 +55,13 @@ const Index = () => {
         artist: tattoo.artist || '',
         location: tattoo.location || '',
         meaning: tattoo.meaning || '',
-        lastRefreshed: tattoo.last_refreshed ? new Date(tattoo.last_refreshed) : undefined
+        lastRefreshed: tattoo.last_refreshed ? new Date(tattoo.last_refreshed) : undefined,
+        isPublic: tattoo.is_public || false
       }));
     },
     enabled: !!user,
   });
 
-  // Fetch user subscription tier from profiles
   useEffect(() => {
     const fetchUserTier = async () => {
       if (!user) return;
@@ -79,11 +77,8 @@ const Index = () => {
         return;
       }
       
-      // For now, we'll just use the free tier as default until we update the profiles table
-      // We'll implement the subscription upgrade logic later
       setUserTier('free');
       
-      // Check localStorage for subscription status (temporary solution)
       const storedTier = localStorage.getItem('subscription_tier');
       if (storedTier === 'premium') {
         setUserTier('premium');
@@ -93,17 +88,14 @@ const Index = () => {
     fetchUserTier();
   }, [user]);
 
-  // Add/update tattoo mutation
   const saveTattooMutation = useMutation({
     mutationFn: async (newTattoo: Tattoo) => {
       if (!user) throw new Error('User not authenticated');
       
       let imageUrl = newTattoo.image;
       
-      // Check if we have a File object from a camera capture or upload
       if (newTattoo.imageFile instanceof File) {
         try {
-          // Upload the file to Supabase Storage
           const file = newTattoo.imageFile;
           const fileExt = file.name.split('.').pop();
           const fileName = `${user.id}/${Date.now()}.${fileExt}`;
@@ -114,7 +106,6 @@ const Index = () => {
             
           if (uploadError) throw uploadError;
           
-          // Get the public URL
           const { data: { publicUrl } } = supabase.storage
             .from('tattoos')
             .getPublicUrl(fileName);
@@ -136,10 +127,10 @@ const Index = () => {
         date_added: newTattoo.dateAdded.toISOString(),
         last_refreshed: newTattoo.lastRefreshed?.toISOString(),
         user_id: user.id,
+        is_public: newTattoo.isPublic || false
       };
       
       if (editingTattoo) {
-        // Update existing tattoo
         const { error } = await supabase
           .from('tattoos')
           .update(tattooData)
@@ -148,7 +139,6 @@ const Index = () => {
         if (error) throw error;
         return { ...newTattoo, image: imageUrl };
       } else {
-        // Insert new tattoo
         const { data, error } = await supabase
           .from('tattoos')
           .insert(tattooData)
@@ -160,7 +150,8 @@ const Index = () => {
           ...newTattoo,
           id: data.id,
           dateAdded: new Date(data.date_added),
-          image: imageUrl
+          image: imageUrl,
+          isPublic: data.is_public
         };
       }
     },
@@ -177,7 +168,6 @@ const Index = () => {
   });
 
   const handleAddNew = () => {
-    // Check if user has reached their limit before allowing new tattoo
     if (hasReachedTattooLimit(userTier, tattoos.length) && !editingTattoo) {
       toast.error('You have reached your tattoo limit. Upgrade to premium for unlimited tattoos.');
       return;
@@ -196,7 +186,6 @@ const Index = () => {
   };
 
   const handleSaveTattoo = (newTattoo: Tattoo) => {
-    // If it's a new tattoo (not editing) and user has reached limit, show error
     if (!editingTattoo && hasReachedTattooLimit(userTier, tattoos.length)) {
       toast.error('You have reached your tattoo limit. Upgrade to premium for unlimited tattoos.');
       return;
@@ -210,7 +199,6 @@ const Index = () => {
       <Header onAddNew={handleAddNew} />
       
       <main className="container py-6 animate-fade-in">
-        {/* Display subscription banner if user has reached limit */}
         <SubscriptionBanner 
           tattooCount={tattoos.length} 
           userTier={userTier} 

@@ -1,11 +1,11 @@
-
 import React, { useState, useRef } from 'react';
-import { Calendar as CalendarIcon, X, Camera, Upload } from 'lucide-react';
+import { Calendar as CalendarIcon, X, Camera, Upload, Globe, Lock } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardFooter, CardHeader, CardTitle } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
+import { Switch } from '@/components/ui/switch';
 import { 
   Dialog,
   DialogContent,
@@ -51,12 +51,12 @@ const TattooForm: React.FC<TattooFormProps> = ({
   const [image, setImage] = useState<string | undefined>(editingTattoo?.image);
   const [imageFile, setImageFile] = useState<File | null>(null);
   const [showCamera, setShowCamera] = useState(false);
+  const [isPublic, setIsPublic] = useState(editingTattoo?.isPublic || false);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const videoRef = useRef<HTMLVideoElement>(null);
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const [stream, setStream] = useState<MediaStream | null>(null);
 
-  // Handle file selection
   const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (file) {
@@ -67,23 +67,19 @@ const TattooForm: React.FC<TattooFormProps> = ({
     }
   };
 
-  // Trigger file input click
   const handleUploadClick = () => {
     fileInputRef.current?.click();
   };
 
-  // Handle camera capture
   const handleCameraClick = async () => {
     try {
       if (showCamera && stream) {
-        // If camera is already open, close it
         stream.getTracks().forEach(track => track.stop());
         setStream(null);
         setShowCamera(false);
         return;
       }
 
-      // Open camera
       const mediaStream = await navigator.mediaDevices.getUserMedia({ 
         video: { facingMode: 'environment' } 
       });
@@ -100,22 +96,18 @@ const TattooForm: React.FC<TattooFormProps> = ({
     }
   };
 
-  // Capture photo from camera
   const capturePhoto = () => {
     if (videoRef.current && canvasRef.current && stream) {
       const video = videoRef.current;
       const canvas = canvasRef.current;
       
-      // Set canvas dimensions to match video
       canvas.width = video.videoWidth;
       canvas.height = video.videoHeight;
       
-      // Draw video frame to canvas
       const context = canvas.getContext('2d');
       if (context) {
         context.drawImage(video, 0, 0, canvas.width, canvas.height);
         
-        // Convert canvas to blob
         canvas.toBlob((blob) => {
           if (blob) {
             const file = new File([blob], 'tattoo-photo.jpg', { type: 'image/jpeg' });
@@ -123,7 +115,6 @@ const TattooForm: React.FC<TattooFormProps> = ({
             const imageUrl = URL.createObjectURL(blob);
             setImage(imageUrl);
             
-            // Close camera
             stream.getTracks().forEach(track => track.stop());
             setStream(null);
             setShowCamera(false);
@@ -133,7 +124,6 @@ const TattooForm: React.FC<TattooFormProps> = ({
     }
   };
 
-  // Clean up function to stop camera stream
   const stopCameraStream = () => {
     if (stream) {
       stream.getTracks().forEach(track => track.stop());
@@ -152,11 +142,8 @@ const TattooForm: React.FC<TattooFormProps> = ({
     
     let finalImageUrl = image;
     
-    // If we have a new image file, prepare it for upload
     if (imageFile) {
       try {
-        // Here you would typically upload the file to your storage
-        // For now, we'll just use the local object URL
         finalImageUrl = URL.createObjectURL(imageFile);
         
         // In a real implementation with Supabase storage, you would do:
@@ -180,7 +167,8 @@ const TattooForm: React.FC<TattooFormProps> = ({
       meaning,
       dateAdded,
       lastRefreshed,
-      image: finalImageUrl
+      image: finalImageUrl,
+      isPublic
     };
     
     onSave(newTattoo);
@@ -198,13 +186,12 @@ const TattooForm: React.FC<TattooFormProps> = ({
       setLastRefreshed(undefined);
       setImage(undefined);
       setImageFile(null);
+      setIsPublic(false);
     }
     
-    // Always stop camera when form is reset
     stopCameraStream();
   };
 
-  // Clean up when dialog closes
   React.useEffect(() => {
     if (!open) {
       stopCameraStream();
@@ -349,7 +336,37 @@ const TattooForm: React.FC<TattooFormProps> = ({
               />
             </div>
 
-            {/* Image capture/upload section */}
+            <div className="grid grid-cols-4 items-center gap-4">
+              <Label htmlFor="privacy" className="text-right">
+                Privacy
+              </Label>
+              <div className="col-span-3 flex items-center justify-between">
+                <div className="flex items-center space-x-2">
+                  <Switch
+                    id="privacy"
+                    checked={isPublic}
+                    onCheckedChange={setIsPublic}
+                  />
+                  <span className="text-sm text-muted-foreground">
+                    {isPublic ? (
+                      <div className="flex items-center">
+                        <Globe className="h-4 w-4 mr-1" />
+                        Public
+                      </div>
+                    ) : (
+                      <div className="flex items-center">
+                        <Lock className="h-4 w-4 mr-1" />
+                        Private
+                      </div>
+                    )}
+                  </span>
+                </div>
+                <span className="text-xs text-muted-foreground">
+                  {isPublic ? "Anyone can see this tattoo" : "Only you can see this tattoo"}
+                </span>
+              </div>
+            </div>
+
             <div className="grid grid-cols-4 items-start gap-4">
               <Label className="text-right pt-2">
                 Image
@@ -383,7 +400,6 @@ const TattooForm: React.FC<TattooFormProps> = ({
                   />
                 </div>
 
-                {/* Camera view */}
                 {showCamera && (
                   <div className="relative rounded-md overflow-hidden">
                     <AspectRatio ratio={4/3} className="bg-muted">
@@ -406,7 +422,6 @@ const TattooForm: React.FC<TattooFormProps> = ({
                   </div>
                 )}
                 
-                {/* Image preview */}
                 {image && !showCamera && (
                   <div className="relative rounded-md overflow-hidden subtle-border">
                     <AspectRatio ratio={4/3} className="bg-muted">
@@ -435,7 +450,6 @@ const TattooForm: React.FC<TattooFormProps> = ({
                   </div>
                 )}
 
-                {/* Image URL input (as fallback) */}
                 <Input
                   id="image"
                   value={image || ''}

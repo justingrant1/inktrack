@@ -1,7 +1,7 @@
 
 import React from 'react';
 import { format } from 'date-fns';
-import { Pencil, Calendar, User } from 'lucide-react';
+import { Pencil, Calendar, User, Globe, Lock } from 'lucide-react';
 import { Card, CardHeader, CardContent, CardFooter } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
@@ -16,6 +16,7 @@ interface TattooCardProps {
     location: string;
     meaning: string;
     lastRefreshed?: Date;
+    isPublic?: boolean;
   };
   onEdit: (id: string) => void;
 }
@@ -26,9 +27,22 @@ const TattooCard = ({ tattoo, onEdit }: TattooCardProps) => {
       <CardHeader className="p-4 pb-0">
         <div className="flex justify-between items-start">
           <div>
-            <Badge variant="outline" className="mb-2">
-              {tattoo.location}
-            </Badge>
+            <div className="flex gap-2 mb-2">
+              <Badge variant="outline" className="mb-2">
+                {tattoo.location}
+              </Badge>
+              {tattoo.isPublic ? (
+                <Badge variant="outline" className="bg-green-100 text-green-800 mb-2">
+                  <Globe className="mr-1 h-3 w-3" />
+                  Public
+                </Badge>
+              ) : (
+                <Badge variant="outline" className="bg-slate-100 text-slate-800 mb-2">
+                  <Lock className="mr-1 h-3 w-3" />
+                  Private
+                </Badge>
+              )}
+            </div>
             <h3 className="font-semibold text-xl mb-1">{tattoo.title}</h3>
           </div>
           <Button 
