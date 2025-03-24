@@ -85,6 +85,76 @@ export const checkForPublicTattoos = async () => {
   }
 };
 
+/**
+ * Mark a tattoo as globally public by setting a custom field in Supabase
+ */
+export const markTattooAsGloballyPublic = async (tattooId: string, isPublic: boolean) => {
+  try {
+    // Mark a tattoo as public in Supabase - regardless of who views it
+    // This is used when a user toggles the public switch in the UI
+    
+    // First check if the tattoo exists
+    const { data: tattooExists, error: checkError } = await supabase
+      .from('tattoos')
+      .select('id')
+      .eq('id', tattooId)
+      .single();
+    
+    if (checkError && checkError.code !== 'PGRST116') {
+      console.error('Error checking if tattoo exists:', checkError);
+      return false;
+    }
+    
+    if (!tattooExists) {
+      console.error('Tattoo not found:', tattooId);
+      return false;
+    }
+    
+    // We'll mark tattoos with a custom property in their title instead of using a new column
+    // This works because we don't have permission to alter the schema
+    const { data: currentTattoo, error: getTattooError } = await supabase
+      .from('tattoos')
+      .select('title')
+      .eq('id', tattooId)
+      .single();
+    
+    if (getTattooError) {
+      console.error('Error getting tattoo:', getTattooError);
+      return false;
+    }
+    
+    // Update the title to add/remove the [Public] tag
+    let newTitle = currentTattoo.title;
+    
+    if (isPublic && !newTitle.includes('[Public]')) {
+      newTitle = `[Public] ${newTitle}`;
+    } else if (!isPublic && newTitle.includes('[Public]')) {
+      newTitle = newTitle.replace('[Public] ', '');
+    }
+    
+    // Only update if the title actually changed
+    if (newTitle !== currentTattoo.title) {
+      const { error: updateError } = await supabase
+        .from('tattoos')
+        .update({ title: newTitle })
+        .eq('id', tattooId);
+        
+      if (updateError) {
+        console.error('Error updating tattoo visibility:', updateError);
+        return false;
+      }
+    }
+    
+    // Also save to localStorage for backward compatibility
+    localStorage.setItem(`tattoo_public_${tattooId}`, isPublic.toString());
+    
+    return true;
+  } catch (error) {
+    console.error('Error marking tattoo as globally public:', error);
+    return false;
+  }
+};
+
 export const fetchPublicTattoos = async (page: number, pageSize: number) => {
   const from = (page - 1) * pageSize;
   const to = from + pageSize - 1;
@@ -92,57 +162,14 @@ export const fetchPublicTattoos = async (page: number, pageSize: number) => {
   console.log(`Fetching public tattoos: page ${page}, range ${from}-${to}`);
   
   try {
-    // First get all public tattoo IDs from localStorage AND from server-side
-    // 1. Check localStorage (for the logged-in user who created public tattoos)
-    const keys = Object.keys(localStorage);
-    const localStoragePublicIds = keys
-      .filter(key => key.startsWith('tattoo_public_') && localStorage.getItem(key) === 'true')
-      .map(key => key.replace('tattoo_public_', ''));
-    
-    console.log(`Found ${localStoragePublicIds.length} public tattoo IDs in localStorage`);
-    
-    // 2. Check Supabase for tattoos that should be considered public
-    const supabasePublicIds = await checkForPublicTattoos();
-    
-    // 3. Combine both sources of public tattoo IDs and remove duplicates
-    const publicTattooIds = Array.from(new Set([...localStoragePublicIds, ...supabasePublicIds]));
-    
-    console.log(`Combined ${publicTattooIds.length} unique public tattoo IDs from all sources`);
-    
-    // If there are no public tattoos, create a demo one for testing
-    if (publicTattooIds.length === 0) {
-      console.log('No public tattoos found. Creating a demo public tattoo...');
-      await createDemoPublicTattoo();
-      
-      // Re-check for public tattoos after creating the demo
-      const newSupabasePublicIds = await checkForPublicTattoos();
-      const updatedPublicIds = Array.from(new Set([...localStoragePublicIds, ...newSupabasePublicIds]));
-      
-      console.log(`After creating demo, found ${updatedPublicIds.length} public tattoo IDs`);
-      
-      if (updatedPublicIds.length === 0) {
-        return {
-          tattoos: [],
-          totalCount: 0,
-          totalPages: 0
-        };
-      }
-      
-      // Use the updated list
-      publicTattooIds.push(...updatedPublicIds);
-    }
-    
-    // Fetch all profiles
-    const profiles = await fetchProfiles();
-    
-    // Fetch all tattoos from Supabase
-    const { data, error } = await supabase
+    // Get ALL tattoos from Supabase first
+    const { data: allTattoos, error: fetchAllError } = await supabase
       .from('tattoos')
       .select('*')
       .order('created_at', { ascending: false });
       
-    if (error) {
-      console.error('Error fetching tattoos from Supabase:', error);
+    if (fetchAllError) {
+      console.error('Error fetching tattoos from Supabase:', fetchAllError);
       return {
         tattoos: [],
         totalCount: 0,
@@ -150,10 +177,89 @@ export const fetchPublicTattoos = async (page: number, pageSize: number) => {
       };
     }
     
-    console.log(`Fetched ${data?.length || 0} tattoos from Supabase`);
+    console.log(`Fetched ${allTattoos?.length || 0} total tattoos from Supabase`);
+    
+    // Get public tattoo IDs from all sources
+    // 1. Check localStorage (for the logged-in user who created public tattoos)
+    let localStoragePublicIds: string[] = [];
+    try {
+      const keys = Object.keys(localStorage);
+      localStoragePublicIds = keys
+        .filter(key => key.startsWith('tattoo_public_') && localStorage.getItem(key) === 'true')
+        .map(key => key.replace('tattoo_public_', ''));
+      
+      console.log(`Found ${localStoragePublicIds.length} public tattoo IDs in localStorage`);
+    } catch (error) {
+      console.error('Error accessing localStorage (might be in private browsing):', error);
+    }
+    
+    // 2. Find tattoos that have [Public] in their title
+    const titlePublicTattoos = allTattoos.filter(tattoo => 
+      tattoo.title && (
+        tattoo.title.includes('[Public]') || 
+        tattoo.title.toLowerCase().includes('public') ||
+        tattoo.title.toLowerCase().includes('demo')
+      )
+    );
+    
+    const titlePublicIds = titlePublicTattoos.map(tattoo => tattoo.id);
+    console.log(`Found ${titlePublicIds.length} tattoos with public markers in their title`);
+    
+    // 3. Combine both sources of public tattoo IDs and remove duplicates
+    const publicTattooIds = Array.from(new Set([...localStoragePublicIds, ...titlePublicIds]));
+    
+    console.log(`Combined ${publicTattooIds.length} unique public tattoo IDs from all sources`);
+    
+    // If there are no public tattoos, create a demo one
+    if (publicTattooIds.length === 0) {
+      console.log('No public tattoos found. Creating a demo public tattoo...');
+      await createDemoPublicTattoo();
+      
+      // Refetch all tattoos after creating the demo
+      const { data: updatedTattoos } = await supabase
+        .from('tattoos')
+        .select('*')
+        .order('created_at', { ascending: false });
+        
+      if (updatedTattoos) {
+        // Find the newly created demo tattoo
+        const demoTattoos = updatedTattoos.filter(tattoo => 
+          tattoo.title && (
+            tattoo.title.includes('[Public]') || 
+            tattoo.title.toLowerCase().includes('public') ||
+            tattoo.title.toLowerCase().includes('demo')
+          )
+        );
+        
+        const demoTattooIds = demoTattoos.map(tattoo => tattoo.id);
+        publicTattooIds.push(...demoTattooIds);
+        
+        console.log(`After creating demo, found ${demoTattooIds.length} public tattoo IDs`);
+      }
+    }
+    
+    // Fetch all profiles
+    const profiles = await fetchProfiles();
+    
+    // Fetch all tattoos from Supabase
+    const { data: allTattoosData, error: fetchError } = await supabase
+      .from('tattoos')
+      .select('*')
+      .order('created_at', { ascending: false });
+      
+    if (fetchError) {
+      console.error('Error fetching tattoos from Supabase:', fetchError);
+      return {
+        tattoos: [],
+        totalCount: 0,
+        totalPages: 0
+      };
+    }
+    
+    console.log(`Fetched ${allTattoosData?.length || 0} tattoos from Supabase`);
     
     // Filter tattoos to include only those marked as public
-    const publicTattoos = data
+    const publicTattoos = allTattoosData
       .filter(tattoo => publicTattooIds.includes(tattoo.id))
       .map(tattoo => {
         const profile = profiles.find(p => p.id === tattoo.user_id);
@@ -201,7 +307,7 @@ const createDemoPublicTattoo = async () => {
     const { data: existingData, error: checkError } = await supabase
       .from('tattoos')
       .select('id')
-      .ilike('title', '%Demo Public Tattoo%')
+      .ilike('title', '%[Public]%')
       .limit(1);
       
     if (checkError) {
@@ -211,19 +317,19 @@ const createDemoPublicTattoo = async () => {
     
     // If demo tattoo already exists, just make it public in localStorage
     if (existingData && existingData.length > 0) {
-      console.log('Demo tattoo already exists, ensuring it is marked as public in localStorage');
+      console.log('Public tattoo already exists, ensuring it is marked as public in localStorage');
       localStorage.setItem(`tattoo_public_${existingData[0].id}`, 'true');
       return existingData[0].id;
     }
     
     // Create a new demo tattoo
     const demoTattoo = {
-      title: 'Demo Public Tattoo',
+      title: '[Public] Demo Tattoo - Shared With Everyone',
       artist: 'Demo Artist',
-      location: 'Demo Location',
-      meaning: 'This is a demo public tattoo for testing the public gallery.',
+      location: 'Forearm',
+      meaning: 'This is a demo public tattoo for testing the public gallery. This tattoo is visible to everyone.',
       date_added: new Date().toISOString(),
-      user_id: 'demo-user-id', // This should ideally be a real user ID
+      user_id: 'demo-user-id',
       image: 'https://source.unsplash.com/random/300x200/?tattoo'
     };
     

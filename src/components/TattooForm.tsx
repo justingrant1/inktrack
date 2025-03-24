@@ -12,6 +12,7 @@ import { format } from 'date-fns';
 import { AspectRatio } from '@/components/ui/aspect-ratio';
 import { Switch } from '@/components/ui/switch';
 import { toast } from "sonner";
+import { markTattooAsGloballyPublic } from "@/utils/publicTattooUtils";
 
 interface TattooFormProps {
   open: boolean;
@@ -26,7 +27,7 @@ interface TattooFormProps {
     meaning: string;
     imageFile?: File;
     isPublic?: boolean;
-  }) => void;
+  }) => Promise<any>;
   editingTattoo: {
     id: string;
     title: string;
@@ -121,22 +122,10 @@ const TattooForm: React.FC<TattooFormProps> = ({ open, onOpenChange, onSave, edi
         console.log("Image file ready for upload:", imageFile.name, imageFile.type, `${Math.round(imageFile.size / 1024)}KB`);
       }
       
-      // Make sure public status is reflected in the title if marked as public
-      let finalTitle = title.trim();
-      
-      // If this tattoo is marked as public and doesn't already have "Public" in the title,
-      // we can optionally add it to make it easier for other users to find
-      if (isPublic && !finalTitle.toLowerCase().includes('public')) {
-        // Add a subtle tag in the title to make it public-accessible for all users
-        // Uncomment the next line to explicitly add "Public" to the title
-        // finalTitle = `${finalTitle} (Public)`;
-        
-        console.log("This tattoo is marked as public:", finalTitle);
-      }
-      
-      await onSave({
+      // Prepare the tattoo data
+      const tattooData = {
         id: editingTattoo?.id,
-        title: finalTitle,
+        title: title.trim(),
         image,
         dateAdded: date,
         artist: artist.trim(),
@@ -144,7 +133,20 @@ const TattooForm: React.FC<TattooFormProps> = ({ open, onOpenChange, onSave, edi
         meaning: meaning.trim(),
         imageFile,
         isPublic
-      });
+      };
+      
+      // Save the tattoo
+      await onSave(tattooData);
+      
+      // After saving, if this is tagged as public, make sure to mark it as globally public
+      // This step ensures it has the [Public] tag in its title for non-logged-in users to see
+      if (editingTattoo?.id && isPublic) {
+        await markTattooAsGloballyPublic(editingTattoo.id, true);
+        console.log(`Marked tattoo ${editingTattoo.id} as globally public for all users to see`);
+      } else if (isPublic) {
+        // For new tattoos, we'll handle this in the Index component after we know the ID
+        console.log('New tattoo marked as public - will be made globally public after saving');
+      }
     } catch (error) {
       console.error("Error in form submission:", error);
       setIsSubmitting(false);

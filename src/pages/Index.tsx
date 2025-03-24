@@ -11,6 +11,7 @@ import { uploadTattooImage } from '@/integrations/supabase/storage';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import SubscriptionBanner from '@/components/SubscriptionBanner';
 import { SubscriptionTier, hasReachedTattooLimit } from '@/utils/subscriptionTiers';
+import { markTattooAsGloballyPublic } from '@/utils/publicTattooUtils';
 
 interface Tattoo {
   id: string;
@@ -204,13 +205,38 @@ const Index = () => {
     }
   };
 
-  const handleSaveTattoo = (newTattoo: Tattoo) => {
+  const handleSaveTattoo = async (newTattoo: Tattoo) => {
     if (!editingTattoo && hasReachedTattooLimit(userTier, tattoos.length)) {
       toast.error('You have reached your tattoo limit. Upgrade to premium for unlimited tattoos.');
-      return;
+      return null;
     }
     
-    saveTattooMutation.mutate(newTattoo);
+    // Use the mutation but wrap it in a promise to make it compatible with the TattooForm interface
+    return new Promise((resolve, reject) => {
+      saveTattooMutation.mutate(newTattoo, {
+        onSuccess: (result) => {
+          // If this is a public tattoo, make sure it's globally accessible
+          if (newTattoo.isPublic && result?.id) {
+            markTattooAsGloballyPublic(result.id, true)
+              .then(() => {
+                console.log(`Marked new tattoo ${result.id} as globally public`);
+                resolve(result);
+              })
+              .catch(err => {
+                console.error("Error marking tattoo as globally public:", err);
+                // Still resolve with the result even if the marking fails
+                resolve(result);
+              });
+          } else {
+            resolve(result);
+          }
+        },
+        onError: (error) => {
+          console.error("Error saving tattoo:", error);
+          reject(error);
+        }
+      });
+    });
   };
 
   return (
