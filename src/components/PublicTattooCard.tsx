@@ -45,6 +45,22 @@ const PublicTattooCard = ({ tattoo }: PublicTattooCardProps) => {
   const queryClient = useQueryClient();
   const [liked, setLiked] = useState(false);
   
+  // Ensure default values for required fields
+  const safeTitle = tattoo.title || 'Untitled Tattoo';
+  const safeArtist = tattoo.artist || 'Unknown Artist';
+  const safeLocation = tattoo.location || 'Unknown Location';
+  const safeMeaning = tattoo.meaning || '';
+  
+  // Use a default date if dateAdded is invalid
+  let displayDate = new Date();
+  try {
+    displayDate = tattoo.dateAdded instanceof Date && !isNaN(tattoo.dateAdded.getTime()) 
+      ? tattoo.dateAdded 
+      : new Date();
+  } catch (error) {
+    console.error('Invalid date for tattoo:', tattoo.id);
+  }
+  
   // Simulate fetching likes using local storage
   const { data: likesData } = useQuery({
     queryKey: ['tattoo-likes', tattoo.id],
@@ -189,17 +205,17 @@ const PublicTattooCard = ({ tattoo }: PublicTattooCardProps) => {
           </Avatar>
           <div>
             <p className="font-medium text-sm">{displayName}</p>
-            <p className="text-xs text-muted-foreground">{format(tattoo.dateAdded, 'MMMM d, yyyy')}</p>
+            <p className="text-xs text-muted-foreground">{format(displayDate, 'MMMM d, yyyy')}</p>
           </div>
         </div>
       </CardHeader>
       
       <CardContent className="p-4 pt-2">
         <div className="mb-3">
-          <h3 className="font-semibold text-lg">{tattoo.title}</h3>
+          <h3 className="font-semibold text-lg">{safeTitle}</h3>
           <div className="flex gap-2 mt-1">
-            <Badge variant="outline">{tattoo.location}</Badge>
-            <Badge variant="secondary">Artist: {tattoo.artist}</Badge>
+            <Badge variant="outline">{safeLocation}</Badge>
+            <Badge variant="secondary">Artist: {safeArtist}</Badge>
           </div>
         </div>
         
@@ -208,7 +224,7 @@ const PublicTattooCard = ({ tattoo }: PublicTattooCardProps) => {
             <AspectRatio ratio={4/3}>
               <img 
                 src={tattoo.image} 
-                alt={tattoo.title}
+                alt={safeTitle}
                 className="w-full h-full object-cover"
                 loading="lazy"
               />
@@ -216,9 +232,9 @@ const PublicTattooCard = ({ tattoo }: PublicTattooCardProps) => {
           </div>
         )}
         
-        {tattoo.meaning && (
+        {safeMeaning && (
           <div className="mt-3 text-sm text-muted-foreground">
-            <p>{tattoo.meaning}</p>
+            <p>{safeMeaning}</p>
           </div>
         )}
         

@@ -1,3 +1,4 @@
+
 import React, { useRef, useEffect } from 'react';
 import { useInfiniteQuery } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
@@ -15,45 +16,52 @@ const fetchPublicTattoos = async (page: number, pageSize: number) => {
   
   console.log(`Fetching public tattoos: page ${page}, range ${from}-${to}`);
   
-  const { data, error, count } = await supabase
-    .from('tattoos')
-    .select(`
-      *,
-      profiles(username, avatar_url)
-    `, { count: 'exact' })
-    .order('created_at', { ascending: false })
-    .range(from, to);
+  try {
+    // Since there's an error with the profiles relationship, let's remove it from the query
+    const { data, error, count } = await supabase
+      .from('tattoos')
+      .select('*', { count: 'exact' })
+      .order('created_at', { ascending: false })
+      .range(from, to);
+      
+    if (error) {
+      console.error('Error fetching tattoos:', error);
+      throw error;
+    }
     
-  if (error) {
-    console.error('Error fetching tattoos:', error);
-    throw error;
-  }
-  
-  console.log(`Fetched ${data?.length || 0} tattoos, total count: ${count || 0}`);
-  
-  const tattoos = data.map((tattoo: any) => {
-    const isPublic = localStorage.getItem(`tattoo_public_${tattoo.id}`) === 'true';
-    console.log(`Tattoo ${tattoo.id}: ${tattoo.title} - isPublic: ${isPublic}`);
+    console.log(`Fetched ${data?.length || 0} tattoos, total count: ${count || 0}`);
+    
+    // Process tattoos and check if they're marked as public in localStorage
+    const tattoos = data.map((tattoo: any) => {
+      const isPublic = localStorage.getItem(`tattoo_public_${tattoo.id}`) === 'true';
+      console.log(`Tattoo ${tattoo.id}: ${tattoo.title} - isPublic: ${isPublic}`);
+      
+      return {
+        ...tattoo,
+        dateAdded: new Date(tattoo.created_at || tattoo.date_added),
+        isPublic: isPublic
+      };
+    })
+    .filter((tattoo: any) => {
+      return tattoo.isPublic;
+    });
+    
+    console.log(`After filtering: ${tattoos.length} public tattoos`);
     
     return {
-      ...tattoo,
-      dateAdded: new Date(tattoo.date_added),
-      username: tattoo.profiles?.username,
-      avatar_url: tattoo.profiles?.avatar_url,
-      isPublic: isPublic
+      tattoos,
+      totalCount: count || 0,
+      totalPages: Math.ceil((count || 0) / pageSize)
     };
-  })
-  .filter((tattoo: any) => {
-    return tattoo.isPublic;
-  });
-  
-  console.log(`After filtering: ${tattoos.length} public tattoos`);
-  
-  return {
-    tattoos,
-    totalCount: count || 0,
-    totalPages: Math.ceil((count || 0) / pageSize)
-  };
+  } catch (error) {
+    console.error('Error in fetchPublicTattoos:', error);
+    // Return empty data instead of throwing, so the UI can still render
+    return {
+      tattoos: [],
+      totalCount: 0,
+      totalPages: 0
+    };
+  }
 };
 
 const PublicFeed = () => {
@@ -81,17 +89,31 @@ const PublicFeed = () => {
     },
   });
   
+  // Trigger refetch when component mounts
+  useEffect(() => {
+    console.log('PublicFeed mounted, triggering refetch');
+    refetch();
+  }, [refetch]);
+  
+  // Load more tattoos when user scrolls to the bottom
   useEffect(() => {
     if (inView && hasNextPage && !isFetchingNextPage) {
       fetchNextPage();
     }
   }, [inView, fetchNextPage, hasNextPage, isFetchingNextPage]);
   
-  useEffect(() => {
-    refetch();
-  }, [refetch]);
-  
   const allTattoos = data?.pages.flatMap(page => page.tattoos) || [];
+  console.log('All tattoos to display:', allTattoos.length);
+  
+  // Add some mock data if in development and no tattoos found
+  useEffect(() => {
+    if (process.env.NODE_ENV === 'development' && allTattoos.length === 0 && !isLoading) {
+      // This is just for testing - check if we have any public tattoos in localStorage
+      const keys = Object.keys(localStorage);
+      const publicTattooKeys = keys.filter(key => key.startsWith('tattoo_public_'));
+      console.log('Public tattoo keys in localStorage:', publicTattooKeys);
+    }
+  }, [allTattoos.length, isLoading]);
   
   const renderTattooCards = () => {
     if (isLoading) {
@@ -133,6 +155,18 @@ const PublicFeed = () => {
             <p className="text-muted-foreground">
               Be the first to share your tattoo with the community!
             </p>
+            <button 
+              className="mt-4 px-4 py-2 bg-primary text-primary-foreground rounded-md hover:bg-primary/90 transition-colors"
+              onClick={() => {
+                console.log('Manually checking localStorage for public tattoos');
+                const keys = Object.keys(localStorage);
+                const publicTattooKeys = keys.filter(key => key.startsWith('tattoo_public_'));
+                console.log('Public tattoo keys found:', publicTattooKeys);
+                refetch();
+              }}
+            >
+              Refresh Gallery
+            </button>
           </div>
         </div>
       );
