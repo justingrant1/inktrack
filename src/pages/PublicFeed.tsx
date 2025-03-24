@@ -1,3 +1,4 @@
+
 import React, { useRef, useEffect, useState } from 'react';
 import { useInfiniteQuery } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
@@ -8,6 +9,7 @@ import { useSearchParams } from 'react-router-dom';
 import { Skeleton } from '@/components/ui/skeleton';
 import { useInView } from 'react-intersection-observer';
 import { toast } from 'sonner';
+import { Progress } from '@/components/ui/progress';
 
 const fetchProfiles = async () => {
   try {
@@ -35,10 +37,13 @@ const fetchPublicTattoos = async (page: number, pageSize: number) => {
   console.log(`Fetching public tattoos: page ${page}, range ${from}-${to}`);
   
   try {
+    // Get all public tattoo IDs from localStorage
     const keys = Object.keys(localStorage);
     const publicTattooIds = keys
       .filter(key => key.startsWith('tattoo_public_') && localStorage.getItem(key) === 'true')
       .map(key => key.replace('tattoo_public_', ''));
+    
+    console.log(`Found ${publicTattooIds.length} public tattoo IDs in localStorage:`, publicTattooIds);
     
     if (publicTattooIds.length === 0) {
       return {
@@ -48,8 +53,10 @@ const fetchPublicTattoos = async (page: number, pageSize: number) => {
       };
     }
     
+    // Fetch all profiles
     const profiles = await fetchProfiles();
     
+    // Fetch all tattoos from Supabase
     const { data, error } = await supabase
       .from('tattoos')
       .select('*')
@@ -66,6 +73,7 @@ const fetchPublicTattoos = async (page: number, pageSize: number) => {
     
     console.log(`Fetched ${data?.length || 0} tattoos from Supabase`);
     
+    // Filter tattoos to include only those marked as public
     const publicTattoos = data
       .filter(tattoo => publicTattooIds.includes(tattoo.id))
       .map(tattoo => {
@@ -82,13 +90,15 @@ const fetchPublicTattoos = async (page: number, pageSize: number) => {
     
     console.log(`Found ${publicTattoos.length} public tattoos after filtering`);
     
+    // Sort by date (newest first)
     const sortedTattoos = publicTattoos.sort((a, b) => 
       new Date(b.dateAdded).getTime() - new Date(a.dateAdded).getTime()
     );
     
+    // Apply pagination
     const paginatedTattoos = sortedTattoos.slice(from, to + 1);
     
-    console.log(`Final display: ${paginatedTattoos.length} real public tattoos`);
+    console.log(`Final display: ${paginatedTattoos.length} public tattoos to render`);
     
     return {
       tattoos: paginatedTattoos,
@@ -108,11 +118,12 @@ const fetchPublicTattoos = async (page: number, pageSize: number) => {
 const PublicFeed = () => {
   const [searchParams, setSearchParams] = useSearchParams();
   const [publicTattooCount, setPublicTattooCount] = useState(0);
+  const [isLoading, setIsLoading] = useState(true);
+  const [loadingProgress, setLoadingProgress] = useState(0);
   const page = parseInt(searchParams.get('page') || '1');
   const pageSize = 9; // Show more items per page
   
   const { ref: loadMoreRef, inView } = useInView();
-  const loadedPagesRef = useRef<Set<number>>(new Set([1]));
   
   const [debugInfo, setDebugInfo] = useState<{ message: string; type: 'info' | 'error' | 'success' }>({
     message: 'Initializing...',
@@ -121,15 +132,28 @@ const PublicFeed = () => {
   
   useEffect(() => {
     checkLocalStorageForPublicTattoos(false);
+    
+    // Simulate loading progress
+    const timer = setInterval(() => {
+      setLoadingProgress(prev => {
+        if (prev >= 100) {
+          clearInterval(timer);
+          return 100;
+        }
+        return prev + 10;
+      });
+    }, 200);
+    
+    return () => clearInterval(timer);
   }, []);
   
   const { 
     data, 
-    isLoading, 
     fetchNextPage, 
     hasNextPage, 
     isFetchingNextPage,
-    refetch 
+    refetch,
+    isInitialLoading
   } = useInfiniteQuery({
     queryKey: ['public-tattoos-infinite'],
     queryFn: ({ pageParam }) => fetchPublicTattoos(pageParam, pageSize),
@@ -138,14 +162,22 @@ const PublicFeed = () => {
       const nextPage = allPages.length + 1;
       return nextPage <= lastPage.totalPages ? nextPage : undefined;
     },
-    staleTime: 0,
-    refetchOnMount: true, 
+    staleTime: 0, // Don't cache results
+    refetchOnMount: true, // Always refetch when component mounts
+    refetchOnWindowFocus: false // Prevent refetch on window focus
   });
   
   useEffect(() => {
     console.log('PublicFeed mounted, triggering refetch');
+    // Force clear the query cache and refetch
     refetch();
     checkLocalStorageForPublicTattoos(false);
+    
+    // Set loading state
+    setIsLoading(true);
+    setTimeout(() => {
+      setIsLoading(false);
+    }, 2000);
   }, [refetch]);
   
   useEffect(() => {
@@ -178,7 +210,7 @@ const PublicFeed = () => {
   };
   
   const renderTattooCards = () => {
-    if (isLoading) {
+    if (isLoading || isInitialLoading) {
       return Array(6).fill(0).map((_, index) => (
         <div key={`skeleton-${index}`} className="animate-pulse">
           <div className="tattoo-card">
@@ -282,6 +314,13 @@ const PublicFeed = () => {
               'bg-primary/10 text-primary'
             }`}>
               {debugInfo.message}
+            </div>
+          )}
+          
+          {isLoading && (
+            <div className="mb-8">
+              <p className="text-center text-sm text-muted-foreground mb-2">Loading public tattoos...</p>
+              <Progress value={loadingProgress} className="h-2" />
             </div>
           )}
           

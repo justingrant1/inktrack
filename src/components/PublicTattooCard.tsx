@@ -80,7 +80,8 @@ const PublicTattooCard = ({ tattoo }: PublicTattooCardProps) => {
         count: likes.length,
         userHasLiked: user ? likes.some((like: any) => like.user_id === user.id) : false
       };
-    }
+    },
+    staleTime: 0 // Don't cache results
   });
   
   // Simulate fetching comments using local storage
@@ -91,7 +92,8 @@ const PublicTattooCard = ({ tattoo }: PublicTattooCardProps) => {
       await new Promise(resolve => setTimeout(resolve, 100));
       
       return getStoredComments(tattoo.id);
-    }
+    },
+    staleTime: 0 // Don't cache results
   });
   
   // Add comment mutation using local storage
