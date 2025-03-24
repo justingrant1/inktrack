@@ -14,6 +14,7 @@ import { AuthProvider } from "./context/AuthContext";
 import ProtectedRoute from "./components/ProtectedRoute";
 import { useEffect } from "react";
 import { toast } from "sonner";
+import { initializeStorage } from "./integrations/supabase/storage";
 
 const queryClient = new QueryClient();
 
@@ -30,6 +31,18 @@ const initializeLocalStorage = () => {
 const App = () => {
   useEffect(() => {
     initializeLocalStorage();
+    
+    // Initialize Supabase storage buckets
+    const initStorage = async () => {
+      const success = await initializeStorage();
+      if (success) {
+        console.log('Supabase storage initialized successfully');
+      } else {
+        console.warn('Failed to initialize Supabase storage. Image uploads may not work correctly.');
+      }
+    };
+    
+    initStorage();
     
     // Here we'd check if the Supabase tables exist and create them if not
     // Since we can't modify the database schema in this demo, we're using localStorage

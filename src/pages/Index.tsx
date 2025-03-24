@@ -7,6 +7,7 @@ import TattooForm from '@/components/TattooForm';
 import EmptyState from '@/components/EmptyState';
 import { useAuth } from '@/context/AuthContext';
 import { supabase } from '@/integrations/supabase/client';
+import { uploadTattooImage } from '@/integrations/supabase/storage';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import SubscriptionBanner from '@/components/SubscriptionBanner';
 import { SubscriptionTier, hasReachedTattooLimit } from '@/utils/subscriptionTiers';
@@ -98,43 +99,18 @@ const Index = () => {
       if (newTattoo.imageFile instanceof File) {
         try {
           const file = newTattoo.imageFile;
-          const fileExt = file.name.split('.').pop();
-          const fileName = `${user.id}/${Date.now()}.${fileExt}`;
           
-          try {
-            const { error: uploadError, data } = await supabase.storage
-              .from('tattoos')
-              .upload(fileName, file);
-              
-            if (uploadError) {
-              if (uploadError.message === 'Bucket not found') {
-                console.log('Storage bucket not found. Storing image reference locally.');
-                
-                const blobUrl = URL.createObjectURL(file);
-                localStorage.setItem(`tattoo_image_${Date.now()}`, blobUrl);
-                imageUrl = blobUrl;
-              } else {
-                console.error('Error uploading image:', uploadError);
-                throw uploadError;
-              }
-            } else {
-              const { data: { publicUrl } } = supabase.storage
-                .from('tattoos')
-                .getPublicUrl(fileName);
-                
-              imageUrl = publicUrl;
-            }
-          } catch (error: any) {
-            if (error.message?.includes('Bucket not found') || error.error?.includes('Bucket not found')) {
-              console.log('Storage bucket not found. Storing image reference locally.');
-              
-              const blobUrl = URL.createObjectURL(file);
-              localStorage.setItem(`tattoo_image_${Date.now()}`, blobUrl);
-              imageUrl = blobUrl;
-            } else {
-              console.error('Error uploading image:', error);
-              throw error;
-            }
+          const uploadedImageUrl = await uploadTattooImage(file, user.id);
+          
+          if (uploadedImageUrl) {
+            imageUrl = uploadedImageUrl;
+            console.log('Image uploaded successfully:', imageUrl);
+          } else {
+            console.log('Image upload failed, using fallback');
+            const blobUrl = URL.createObjectURL(file);
+            localStorage.setItem(`tattoo_image_${Date.now()}`, blobUrl);
+            imageUrl = blobUrl;
+            toast.warning('Image stored locally. It may not persist between sessions.');
           }
         } catch (error) {
           console.error('Error processing image:', error);
