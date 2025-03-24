@@ -1,5 +1,5 @@
 
-import React, { useRef, useEffect } from 'react';
+import React, { useRef, useEffect, useState } from 'react';
 import { useInfiniteQuery } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
 import Header from '@/components/Header';
@@ -17,7 +17,7 @@ const fetchPublicTattoos = async (page: number, pageSize: number) => {
   console.log(`Fetching public tattoos: page ${page}, range ${from}-${to}`);
   
   try {
-    // Remove the profiles() relation that's causing the error
+    // Fetch all tattoos from Supabase
     const { data, error, count } = await supabase
       .from('tattoos')
       .select('*', { count: 'exact' })
@@ -31,12 +31,19 @@ const fetchPublicTattoos = async (page: number, pageSize: number) => {
     
     console.log(`Fetched ${data?.length || 0} tattoos, total count: ${count || 0}`);
     
-    // Check localStorage for public tattoos
+    // Find all public tattoo keys in localStorage
+    const keys = Object.keys(localStorage);
+    const publicTattooIds = keys
+      .filter(key => key.startsWith('tattoo_public_') && localStorage.getItem(key) === 'true')
+      .map(key => key.replace('tattoo_public_', ''));
+    
+    console.log(`Found ${publicTattooIds.length} public tattoo IDs in localStorage:`, publicTattooIds);
+    
+    // Filter tattoos based on public IDs from localStorage
     const publicTattoos = data
       .filter((tattoo: any) => {
-        // Check if this tattoo is marked as public in localStorage
-        const isPublic = localStorage.getItem(`tattoo_public_${tattoo.id}`) === 'true';
-        console.log(`Tattoo ${tattoo.id}: ${tattoo.title} - isPublic from localStorage: ${isPublic}`);
+        const isPublic = publicTattooIds.includes(tattoo.id);
+        console.log(`Tattoo ${tattoo.id}: ${tattoo.title} - isPublic: ${isPublic}`);
         return isPublic;
       })
       .map((tattoo: any) => ({
@@ -48,12 +55,12 @@ const fetchPublicTattoos = async (page: number, pageSize: number) => {
         avatar_url: null
       }));
     
-    console.log(`After filtering: ${publicTattoos.length} public tattoos`);
+    console.log(`After filtering: ${publicTattoos.length} public tattoos to display`);
     
     return {
       tattoos: publicTattoos,
-      totalCount: count || 0,
-      totalPages: Math.ceil((count || 0) / pageSize)
+      totalCount: publicTattoos.length,
+      totalPages: Math.ceil(publicTattoos.length / pageSize)
     };
   } catch (error) {
     console.error('Error in fetchPublicTattoos:', error);
@@ -68,11 +75,17 @@ const fetchPublicTattoos = async (page: number, pageSize: number) => {
 
 const PublicFeed = () => {
   const [searchParams, setSearchParams] = useSearchParams();
+  const [publicTattooCount, setPublicTattooCount] = useState(0);
   const page = parseInt(searchParams.get('page') || '1');
   const pageSize = 9; // Show more items per page
   
   const { ref: loadMoreRef, inView } = useInView();
   const loadedPagesRef = useRef<Set<number>>(new Set([1]));
+  
+  // Fetch information about public tattoos in localStorage
+  useEffect(() => {
+    checkLocalStorageForPublicTattoos(false);
+  }, []);
   
   const { 
     data, 
@@ -107,10 +120,10 @@ const PublicFeed = () => {
   const allTattoos = data?.pages.flatMap(page => page.tattoos) || [];
   console.log('All tattoos to display:', allTattoos.length);
 
-  const checkLocalStorageForPublicTattoos = () => {
-    console.log('Manually checking localStorage for public tattoos');
+  const checkLocalStorageForPublicTattoos = (showToast = true) => {
+    console.log('Checking localStorage for public tattoos');
     const keys = Object.keys(localStorage);
-    const publicTattooKeys = keys.filter(key => key.startsWith('tattoo_public_'));
+    const publicTattooKeys = keys.filter(key => key.startsWith('tattoo_public_') && localStorage.getItem(key) === 'true');
     const publicTattooIds = publicTattooKeys.map(key => key.replace('tattoo_public_', ''));
     
     console.log('Public tattoo keys found:', publicTattooKeys);
@@ -121,7 +134,12 @@ const PublicFeed = () => {
       console.log(`${key}: ${localStorage.getItem(key)}`);
     });
     
-    toast.info(`Found ${publicTattooKeys.length} public tattoos in localStorage`);
+    setPublicTattooCount(publicTattooIds.length);
+    
+    if (showToast) {
+      toast.info(`Found ${publicTattooIds.length} public tattoos in localStorage`);
+    }
+    
     refetch();
   };
   
@@ -163,7 +181,9 @@ const PublicFeed = () => {
           <div className="text-center py-12 px-4">
             <h3 className="text-xl font-semibold mb-2">No public tattoos yet</h3>
             <p className="text-muted-foreground">
-              Be the first to share your tattoo with the community!
+              {publicTattooCount > 0 
+                ? `Found ${publicTattooCount} public tattoos in localStorage, but none could be displayed. Please check the console for more information.`
+                : 'Be the first to share your tattoo with the community!'}
             </p>
             <div className="flex flex-col sm:flex-row gap-4 justify-center mt-4">
               <button 
@@ -210,7 +230,7 @@ const PublicFeed = () => {
             </div>
             <button
               onClick={() => {
-                refetch();
+                checkLocalStorageForPublicTattoos();
                 toast.success("Gallery refreshed");
               }}
               className="px-4 py-2 bg-primary text-primary-foreground rounded-md hover:bg-primary/90 transition-colors"
