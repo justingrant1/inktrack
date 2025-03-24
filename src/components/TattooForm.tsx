@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect } from 'react';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from '@/components/ui/dialog';
 import { Button } from '@/components/ui/button';
@@ -12,6 +11,7 @@ import { cn } from '@/lib/utils';
 import { format } from 'date-fns';
 import { AspectRatio } from '@/components/ui/aspect-ratio';
 import { Switch } from '@/components/ui/switch';
+import { toast } from "sonner";
 
 interface TattooFormProps {
   open: boolean;
@@ -48,8 +48,8 @@ const TattooForm: React.FC<TattooFormProps> = ({ open, onOpenChange, onSave, edi
   const [meaning, setMeaning] = useState('');
   const [imageFile, setImageFile] = useState<File | undefined>(undefined);
   const [isPublic, setIsPublic] = useState(false);
+  const [isSubmitting, setIsSubmitting] = useState(false);
   
-  // Reset form when opened or when editing a different tattoo
   useEffect(() => {
     if (open) {
       if (editingTattoo) {
@@ -62,7 +62,6 @@ const TattooForm: React.FC<TattooFormProps> = ({ open, onOpenChange, onSave, edi
         setIsPublic(editingTattoo.isPublic || false);
         setImageFile(undefined);
       } else {
-        // Clear form for new tattoo
         setTitle('');
         setImage(undefined);
         setDate(new Date());
@@ -72,12 +71,18 @@ const TattooForm: React.FC<TattooFormProps> = ({ open, onOpenChange, onSave, edi
         setImageFile(undefined);
         setIsPublic(false);
       }
+      setIsSubmitting(false);
     }
   }, [open, editingTattoo]);
   
   const handleImageChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (file) {
+      if (file.size > 5 * 1024 * 1024) {
+        toast.error("Image is too large. Maximum file size is 5MB.");
+        return;
+      }
+      
       setImageFile(file);
       const url = URL.createObjectURL(file);
       setImage(url);
@@ -89,20 +94,34 @@ const TattooForm: React.FC<TattooFormProps> = ({ open, onOpenChange, onSave, edi
     setImageFile(undefined);
   };
   
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     
-    onSave({
-      id: editingTattoo?.id,
-      title,
-      image,
-      dateAdded: date,
-      artist,
-      location,
-      meaning,
-      imageFile,
-      isPublic
-    });
+    if (isSubmitting) return;
+    
+    if (!title.trim()) {
+      toast.error("Title is required");
+      return;
+    }
+    
+    try {
+      setIsSubmitting(true);
+      
+      await onSave({
+        id: editingTattoo?.id,
+        title: title.trim(),
+        image,
+        dateAdded: date,
+        artist: artist.trim(),
+        location: location.trim(),
+        meaning: meaning.trim(),
+        imageFile,
+        isPublic
+      });
+    } catch (error) {
+      console.error("Error in form submission:", error);
+      setIsSubmitting(false);
+    }
   };
   
   return (

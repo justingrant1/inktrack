@@ -40,6 +40,7 @@ const Index = () => {
       const { data, error } = await supabase
         .from('tattoos')
         .select('*')
+        .eq('user_id', user.id)
         .order('created_at', { ascending: false });
       
       if (error) {
@@ -106,7 +107,10 @@ const Index = () => {
             .from('tattoos')
             .upload(fileName, file);
             
-          if (uploadError) throw uploadError;
+          if (uploadError) {
+            console.error('Error uploading image:', uploadError);
+            throw uploadError;
+          }
           
           const { data: { publicUrl } } = supabase.storage
             .from('tattoos')
@@ -132,31 +136,43 @@ const Index = () => {
         // is_public: newTattoo.isPublic || false - This doesn't exist in the schema yet
       };
       
+      let result;
+      
       if (editingTattoo) {
         const { error } = await supabase
           .from('tattoos')
           .update(tattooData)
           .eq('id', newTattoo.id);
         
-        if (error) throw error;
+        if (error) {
+          console.error('Error updating tattoo:', error);
+          throw error;
+        }
         
         // Store isPublic status in localStorage until schema is updated
         localStorage.setItem(`tattoo_public_${newTattoo.id}`, newTattoo.isPublic.toString());
         
-        return { ...newTattoo, image: imageUrl };
+        result = { ...newTattoo, image: imageUrl };
       } else {
         const { data, error } = await supabase
           .from('tattoos')
           .insert(tattooData)
-          .select('*')
+          .select()
           .single();
         
-        if (error) throw error;
+        if (error) {
+          console.error('Error inserting tattoo:', error);
+          throw error;
+        }
+        
+        if (!data) {
+          throw new Error('No data returned from insert operation');
+        }
         
         // Store isPublic status in localStorage until schema is updated
         localStorage.setItem(`tattoo_public_${data.id}`, newTattoo.isPublic.toString());
         
-        return {
+        result = {
           ...newTattoo,
           id: data.id,
           dateAdded: new Date(data.date_added),
@@ -164,6 +180,8 @@ const Index = () => {
           isPublic: newTattoo.isPublic
         };
       }
+      
+      return result;
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['tattoos', user?.id] });
@@ -254,3 +272,4 @@ const Index = () => {
 };
 
 export default Index;
+
