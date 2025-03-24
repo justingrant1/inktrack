@@ -1,4 +1,3 @@
-
 import React from 'react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from '@/components/ui/card';
@@ -8,7 +7,7 @@ import { useNavigate } from 'react-router-dom';
 import { SUBSCRIPTION_TIERS } from '@/utils/subscriptionTiers';
 import Header from '@/components/Header';
 import { useAuth } from '@/context/AuthContext';
-import { redirectToStripeCheckout, isUserPremium } from '@/utils/stripe';
+import { redirectToStripeCheckout, isUserPremium, handleStripeCheckoutSuccess } from '@/utils/stripe';
 
 const Subscription = () => {
   const navigate = useNavigate();
