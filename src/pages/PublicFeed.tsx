@@ -9,7 +9,6 @@ import { Skeleton } from '@/components/ui/skeleton';
 import { useInView } from 'react-intersection-observer';
 import { toast } from 'sonner';
 
-// Function to fetch profiles data
 const fetchProfiles = async () => {
   try {
     const { data, error } = await supabase
@@ -36,15 +35,11 @@ const fetchPublicTattoos = async (page: number, pageSize: number) => {
   console.log(`Fetching public tattoos: page ${page}, range ${from}-${to}`);
   
   try {
-    // Find all public tattoo keys in localStorage to determine which tattoos are public
     const keys = Object.keys(localStorage);
     const publicTattooIds = keys
       .filter(key => key.startsWith('tattoo_public_') && localStorage.getItem(key) === 'true')
       .map(key => key.replace('tattoo_public_', ''));
     
-    console.log(`Found ${publicTattooIds.length} public tattoo IDs in localStorage:`, publicTattooIds);
-
-    // Early return if no public tattoos exist
     if (publicTattooIds.length === 0) {
       return {
         tattoos: [],
@@ -53,10 +48,8 @@ const fetchPublicTattoos = async (page: number, pageSize: number) => {
       };
     }
     
-    // Fetch all profiles first
     const profiles = await fetchProfiles();
     
-    // Fetch all tattoos from Supabase
     const { data, error } = await supabase
       .from('tattoos')
       .select('*')
@@ -73,11 +66,9 @@ const fetchPublicTattoos = async (page: number, pageSize: number) => {
     
     console.log(`Fetched ${data?.length || 0} tattoos from Supabase`);
     
-    // Filter tattoos to only include those marked as public in localStorage
     const publicTattoos = data
       .filter(tattoo => publicTattooIds.includes(tattoo.id))
       .map(tattoo => {
-        // Find the profile for this tattoo's user_id
         const profile = profiles.find(p => p.id === tattoo.user_id);
         
         return {
@@ -91,12 +82,10 @@ const fetchPublicTattoos = async (page: number, pageSize: number) => {
     
     console.log(`Found ${publicTattoos.length} public tattoos after filtering`);
     
-    // Sort by date (newest first)
     const sortedTattoos = publicTattoos.sort((a, b) => 
       new Date(b.dateAdded).getTime() - new Date(a.dateAdded).getTime()
     );
     
-    // Paginate the results
     const paginatedTattoos = sortedTattoos.slice(from, to + 1);
     
     console.log(`Final display: ${paginatedTattoos.length} real public tattoos`);
@@ -125,13 +114,11 @@ const PublicFeed = () => {
   const { ref: loadMoreRef, inView } = useInView();
   const loadedPagesRef = useRef<Set<number>>(new Set([1]));
   
-  // Add debugging state
   const [debugInfo, setDebugInfo] = useState<{ message: string; type: 'info' | 'error' | 'success' }>({
     message: 'Initializing...',
     type: 'info'
   });
   
-  // Fetch information about public tattoos in localStorage
   useEffect(() => {
     checkLocalStorageForPublicTattoos(false);
   }, []);
@@ -151,15 +138,16 @@ const PublicFeed = () => {
       const nextPage = allPages.length + 1;
       return nextPage <= lastPage.totalPages ? nextPage : undefined;
     },
+    staleTime: 0,
+    refetchOnMount: true, 
   });
   
-  // Trigger refetch when component mounts
   useEffect(() => {
     console.log('PublicFeed mounted, triggering refetch');
     refetch();
+    checkLocalStorageForPublicTattoos(false);
   }, [refetch]);
   
-  // Load more tattoos when user scrolls to the bottom
   useEffect(() => {
     if (inView && hasNextPage && !isFetchingNextPage) {
       fetchNextPage();
@@ -243,7 +231,6 @@ const PublicFeed = () => {
               <button 
                 className="px-4 py-2 bg-secondary text-secondary-foreground rounded-md hover:bg-secondary/90 transition-colors"
                 onClick={() => {
-                  // Display debug information
                   toast.info('Checking for public tattoos...');
                   checkLocalStorageForPublicTattoos();
                 }}
@@ -288,7 +275,6 @@ const PublicFeed = () => {
             </div>
           </div>
           
-          {/* Debug info */}
           {debugInfo.message && (
             <div className={`mb-4 p-3 rounded-md ${
               debugInfo.type === 'error' ? 'bg-destructive/10 text-destructive' :

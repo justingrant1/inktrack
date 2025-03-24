@@ -166,7 +166,7 @@ const PublicTattooCard = ({ tattoo }: PublicTattooCardProps) => {
     }
   });
   
-  // Initialize likes count
+  // Initialize likes and comments for this tattoo if they don't exist yet
   useEffect(() => {
     if (!localStorage.getItem(`tattoo_likes_${tattoo.id}`)) {
       localStorage.setItem(`tattoo_likes_${tattoo.id}`, JSON.stringify([]));
@@ -186,6 +186,11 @@ const PublicTattooCard = ({ tattoo }: PublicTattooCardProps) => {
   };
   
   const handleAddComment = (text: string) => {
+    if (!user) {
+      toast.error('Please sign in to add comments');
+      return;
+    }
+    
     addCommentMutation.mutate(text);
   };
 
