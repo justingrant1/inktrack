@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect } from 'react';
 import { useToast } from "@/hooks/use-toast";
 import { toast } from "sonner";
@@ -12,7 +11,6 @@ import { uploadTattooImage } from '@/integrations/supabase/storage';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import SubscriptionBanner from '@/components/SubscriptionBanner';
 import { SubscriptionTier, hasReachedTattooLimit } from '@/utils/subscriptionTiers';
-import { isUserPremium } from '@/utils/stripe';
 
 interface Tattoo {
   id: string;
@@ -70,10 +68,23 @@ const Index = () => {
     const fetchUserTier = async () => {
       if (!user) return;
       
-      // Check if user is premium from stripe.ts utility
-      const isPremium = isUserPremium();
-      console.log('[DEBUG] User premium status on page load:', isPremium);
-      setUserTier(isPremium ? 'premium' : 'free');
+      const { data, error } = await supabase
+        .from('profiles')
+        .select('username')
+        .eq('id', user.id)
+        .single();
+      
+      if (error && error.code !== 'PGRST116') {
+        console.error('Error fetching user profile:', error);
+        return;
+      }
+      
+      setUserTier('free');
+      
+      const storedTier = localStorage.getItem('subscription_tier');
+      if (storedTier === 'premium') {
+        setUserTier('premium');
+      }
     };
     
     fetchUserTier();
@@ -161,9 +172,6 @@ const Index = () => {
         };
       }
       
-      // Verify we're not accidentally setting premium status
-      console.log('[DEBUG] Premium status after saving tattoo:', isUserPremium());
-      
       return result;
     },
     onSuccess: () => {
@@ -171,13 +179,6 @@ const Index = () => {
       setEditingTattoo(null);
       setIsFormOpen(false);
       toast.success(editingTattoo ? "Tattoo updated successfully!" : "New tattoo added!");
-      
-      // Double-check premium status hasn't changed
-      const isPremium = isUserPremium();
-      console.log('[DEBUG] Premium status after mutation success:', isPremium);
-      
-      // Make sure user tier state matches actual premium status
-      setUserTier(isPremium ? 'premium' : 'free');
     },
     onError: (error) => {
       console.error('Error saving tattoo:', error);

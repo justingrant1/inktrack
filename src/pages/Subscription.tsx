@@ -8,7 +8,7 @@ import { useNavigate } from 'react-router-dom';
 import { SUBSCRIPTION_TIERS } from '@/utils/subscriptionTiers';
 import Header from '@/components/Header';
 import { useAuth } from '@/context/AuthContext';
-import { redirectToStripeCheckout, isUserPremium, handleStripeCheckoutSuccess } from '@/utils/stripe';
+import { redirectToStripeCheckout, isUserPremium } from '@/utils/stripe';
 
 const Subscription = () => {
   const navigate = useNavigate();
@@ -51,7 +51,6 @@ const Subscription = () => {
       const processCheckout = async () => {
         setIsLoading(true);
         try {
-          // This is the only place where we should be setting the subscription tier to premium
           const success = await handleStripeCheckoutSuccess(sessionId);
           if (success) {
             // Clean up the URL

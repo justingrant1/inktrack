@@ -20,7 +20,7 @@ export function redirectToStripeCheckout(priceId: string, userId: string) {
   
   // For demo purposes, we'll simulate the checkout experience
   // In a real app, we would use Stripe's actual checkout URL
-  const checkoutUrl = `https://checkout.stripe.com/c/pay/demo#fidkdWxOYHwnPyd1blppbHNgWjA0TURLf2FEYX8zVGRpZjEwak0wNzZKUXNLQFxmTGNTSG9vfFBTYURTS31QaFU9bmFubmlwQEtXTmwyb1BgT3I4SkcwS15cZGFVQmNANEZ%2FQzVhbldKT21xN3NKc21RcU8zfVA0UWhBMCcpJ3VpbGtuQH11anZgYUxhJz8nZks1PGRKZlNqc1FgPUdPM0hVYHdCNnBrMkJxJyknd2BjYHd3YHdKd2xibGsnPydtcXF1dj8qKmZtYGZuanBxK3Zxd2x1YCtmamgqJ3gl`;
+  const checkoutUrl = `https://checkout.stripe.com/c/pay/demo#fidkdWxOYHwnPyd1blppbHNgWjA0TURLf2FEYX8zVGRpZjEwak0wNzZKUXNLQFxmTGNTSG9vfFBTYURTS31QaFU9bmFubmlwQEtXTmwyb1BgT3I8SkcwS15cZGFVQmNANEZ%2FQzVhbldKT21xN3NKc21RcU8zfVA0UWhBMCcpJ3VpbGtuQH11anZgYUxhJz8nZks1PGRKZlNqc1FgPUdPM0hVYHdCNnBrMkJxJyknd2BjYHd3YHdKd2xibGsnPydtcXF1dj8qKmZtYGZuanBxK3Zxd2x1YCtmamgqJ3gl`;
   
   // Redirect to the simulated checkout page
   window.location.href = checkoutUrl;
@@ -36,7 +36,6 @@ export function handleStripeCheckoutSuccess(sessionId: string): Promise<boolean>
     // Simulate API call delay
     setTimeout(() => {
       // Store subscription info in localStorage (temporary solution)
-      // This is the ONLY place where we should be setting the subscription tier to premium
       localStorage.setItem('subscription_tier', 'premium');
       
       toast.success('Successfully upgraded to Premium!');
@@ -46,14 +45,5 @@ export function handleStripeCheckoutSuccess(sessionId: string): Promise<boolean>
 }
 
 export function isUserPremium(): boolean {
-  // Add debug logging to help identify when this function is called
-  const isPremium = localStorage.getItem('subscription_tier') === 'premium';
-  console.log('[STRIPE] Checking if user is premium:', isPremium);
-  return isPremium;
-}
-
-// Function to explicitly clear premium status (for debugging)
-export function clearPremiumStatus(): void {
-  console.log('[STRIPE] Clearing premium status');
-  localStorage.removeItem('subscription_tier');
+  return localStorage.getItem('subscription_tier') === 'premium';
 }
