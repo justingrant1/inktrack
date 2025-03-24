@@ -27,7 +27,8 @@ export const SUBSCRIPTION_TIERS: Record<SubscriptionTier, TierLimit> = {
     features: [
       'Unlimited tattoos',
       'All free features',
-      'Priority support'
+      'Priority support',
+      'Access to premium templates'
     ]
   }
 };
@@ -39,4 +40,9 @@ export const hasReachedTattooLimit = (
 ): boolean => {
   const tierLimit = SUBSCRIPTION_TIERS[currentTier].maxTattoos;
   return tattooCount >= tierLimit;
+};
+
+// Helper function to get user's subscription tier
+export const getUserSubscriptionTier = (): SubscriptionTier => {
+  return localStorage.getItem('subscription_tier') === 'premium' ? 'premium' : 'free';
 };
