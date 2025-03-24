@@ -1,4 +1,3 @@
-
 import React, { useRef, useEffect, useState } from 'react';
 import { useInfiniteQuery } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
@@ -9,6 +8,26 @@ import { useSearchParams } from 'react-router-dom';
 import { Skeleton } from '@/components/ui/skeleton';
 import { useInView } from 'react-intersection-observer';
 import { toast } from 'sonner';
+
+// Function to fetch profiles data
+const fetchProfiles = async () => {
+  try {
+    const { data, error } = await supabase
+      .from('profiles')
+      .select('*');
+      
+    if (error) {
+      console.error('Error fetching profiles:', error);
+      return [];
+    }
+    
+    console.log(`Fetched ${data?.length || 0} profiles from Supabase`);
+    return data || [];
+  } catch (error) {
+    console.error('Error in fetchProfiles:', error);
+    return [];
+  }
+};
 
 const fetchPublicTattoos = async (page: number, pageSize: number) => {
   const from = (page - 1) * pageSize;
@@ -34,10 +53,13 @@ const fetchPublicTattoos = async (page: number, pageSize: number) => {
       };
     }
     
+    // Fetch all profiles first
+    const profiles = await fetchProfiles();
+    
     // Fetch all tattoos from Supabase
     const { data, error } = await supabase
       .from('tattoos')
-      .select('*, profiles(username, avatar_url)')
+      .select('*')
       .order('created_at', { ascending: false });
       
     if (error) {
@@ -54,13 +76,18 @@ const fetchPublicTattoos = async (page: number, pageSize: number) => {
     // Filter tattoos to only include those marked as public in localStorage
     const publicTattoos = data
       .filter(tattoo => publicTattooIds.includes(tattoo.id))
-      .map(tattoo => ({
-        ...tattoo,
-        isPublic: true,
-        username: tattoo.profiles?.username || 'Anonymous',
-        avatar_url: tattoo.profiles?.avatar_url || null,
-        dateAdded: new Date(tattoo.created_at || tattoo.date_added)
-      }));
+      .map(tattoo => {
+        // Find the profile for this tattoo's user_id
+        const profile = profiles.find(p => p.id === tattoo.user_id);
+        
+        return {
+          ...tattoo,
+          isPublic: true,
+          username: profile?.username || 'Anonymous',
+          avatar_url: profile?.avatar_url || null,
+          dateAdded: new Date(tattoo.created_at || tattoo.date_added)
+        };
+      });
     
     console.log(`Found ${publicTattoos.length} public tattoos after filtering`);
     
