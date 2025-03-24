@@ -1,7 +1,7 @@
 
 import React from 'react';
 import { Link } from 'react-router-dom';
-import { ArrowRight, Sparkles, Shield, Clock } from 'lucide-react';
+import { ArrowRight, Sparkles, Shield, Clock, Images } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 
 const Homepage = () => {
@@ -16,6 +16,9 @@ const Homepage = () => {
             </h1>
           </div>
           <div className="flex items-center gap-4">
+            <Button variant="ghost" asChild>
+              <Link to="/feed">Explore Gallery</Link>
+            </Button>
             <Button variant="ghost" asChild>
               <Link to="/app">Sign In</Link>
             </Button>
@@ -34,11 +37,18 @@ const Homepage = () => {
         <p className="text-muted-foreground text-lg md:text-xl max-w-2xl mb-10">
           Document your tattoos, their meanings, and keep track of when they need to be refreshed.
         </p>
-        <Button size="lg" asChild className="hover-scale">
-          <Link to="/app" className="flex items-center gap-2">
-            Start your collection <ArrowRight className="h-4 w-4" />
-          </Link>
-        </Button>
+        <div className="flex flex-col sm:flex-row gap-4">
+          <Button size="lg" asChild className="hover-scale">
+            <Link to="/app" className="flex items-center gap-2">
+              Start your collection <ArrowRight className="h-4 w-4" />
+            </Link>
+          </Button>
+          <Button size="lg" variant="outline" asChild className="hover-scale">
+            <Link to="/feed" className="flex items-center gap-2">
+              <Images className="h-4 w-4" /> Explore Gallery
+            </Link>
+          </Button>
+        </div>
       </section>
 
       {/* Features Section */}
@@ -90,11 +100,18 @@ const Homepage = () => {
           <p className="text-muted-foreground mb-8 max-w-xl mx-auto">
             Join thousands of tattoo enthusiasts who use Inked Chronicles to document their tattoo journey.
           </p>
-          <Button size="lg" asChild className="hover-scale">
-            <Link to="/app">
-              Get Started Now
-            </Link>
-          </Button>
+          <div className="flex flex-col sm:flex-row justify-center gap-4">
+            <Button size="lg" asChild className="hover-scale">
+              <Link to="/app">
+                Get Started Now
+              </Link>
+            </Button>
+            <Button size="lg" variant="outline" asChild className="hover-scale">
+              <Link to="/feed" className="flex items-center gap-2">
+                <Images className="h-4 w-4" /> Browse Public Gallery
+              </Link>
+            </Button>
+          </div>
         </div>
       </section>
 

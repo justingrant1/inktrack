@@ -1,7 +1,7 @@
 
 import React from 'react';
 import { Link } from 'react-router-dom';
-import { PlusCircle, Home, LogOut, LogIn } from 'lucide-react';
+import { PlusCircle, Home, LogOut, LogIn, Images } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { useAuth } from '@/context/AuthContext';
 
@@ -24,6 +24,12 @@ const Header: React.FC<HeaderProps> = ({ onAddNew }) => {
           <Button variant="ghost" size="icon" asChild className="mr-2">
             <Link to="/">
               <Home className="h-4 w-4" />
+            </Link>
+          </Button>
+          
+          <Button variant="ghost" size="icon" asChild className="mr-2">
+            <Link to="/feed">
+              <Images className="h-4 w-4" />
             </Link>
           </Button>
           
