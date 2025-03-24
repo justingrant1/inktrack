@@ -223,6 +223,15 @@ const Index = () => {
           userTier={userTier} 
         />
         
+        {/* Add an informational banner about public tattoos */}
+        <div className="bg-blue-50 dark:bg-blue-900/20 p-4 rounded-lg mb-6">
+          <h3 className="font-medium text-blue-800 dark:text-blue-300 mb-1">Share Your Tattoos</h3>
+          <p className="text-sm text-blue-700 dark:text-blue-400">
+            Make your tattoos public to share them with the community. Toggle the public switch when adding 
+            or editing a tattoo. Public tattoos will appear in the <a href="/feed" className="underline">Public Gallery</a> for all users to see.
+          </p>
+        </div>
+        
         {isLoading ? (
           <div className="flex justify-center items-center py-12">
             <div className="animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-primary"></div>

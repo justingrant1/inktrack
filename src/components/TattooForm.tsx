@@ -121,9 +121,22 @@ const TattooForm: React.FC<TattooFormProps> = ({ open, onOpenChange, onSave, edi
         console.log("Image file ready for upload:", imageFile.name, imageFile.type, `${Math.round(imageFile.size / 1024)}KB`);
       }
       
+      // Make sure public status is reflected in the title if marked as public
+      let finalTitle = title.trim();
+      
+      // If this tattoo is marked as public and doesn't already have "Public" in the title,
+      // we can optionally add it to make it easier for other users to find
+      if (isPublic && !finalTitle.toLowerCase().includes('public')) {
+        // Add a subtle tag in the title to make it public-accessible for all users
+        // Uncomment the next line to explicitly add "Public" to the title
+        // finalTitle = `${finalTitle} (Public)`;
+        
+        console.log("This tattoo is marked as public:", finalTitle);
+      }
+      
       await onSave({
         id: editingTattoo?.id,
-        title: title.trim(),
+        title: finalTitle,
         image,
         dateAdded: date,
         artist: artist.trim(),
@@ -287,4 +300,3 @@ const TattooForm: React.FC<TattooFormProps> = ({ open, onOpenChange, onSave, edi
 };
 
 export default TattooForm;
-

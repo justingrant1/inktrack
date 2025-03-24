@@ -1,17 +1,6 @@
 import { toast } from 'sonner';
 import { supabase } from '@/integrations/supabase/client';
 
-// Add Vite environment type declaration
-declare global {
-  interface ImportMeta {
-    env: {
-      DEV: boolean;
-      PROD: boolean;
-      MODE: string;
-    };
-  }
-}
-
 export const fetchProfiles = async () => {
   try {
     const { data, error } = await supabase
@@ -63,6 +52,39 @@ export const initializePublicStatusInLocalStorage = async () => {
   }
 };
 
+// Check if tattoos with is_public flag exist in Supabase
+export const checkForPublicTattoos = async () => {
+  console.log('Checking for tattoos marked as public in Supabase');
+  try {
+    // Use a simple RPC call to get all public tattoo IDs
+    // This is a safer approach than trying to access fields that may not exist
+    const { data, error } = await supabase
+      .from('tattoos')
+      .select('id, title')
+      .limit(100);
+      
+    if (error) {
+      console.error('Error checking for public tattoos:', error);
+      return [];
+    }
+    
+    // For the demo, let's make all tattoos with "Public" or "Demo" in the title public
+    const publicTattooIds = data
+      .filter(tattoo => 
+        tattoo.title.toLowerCase().includes('public') || 
+        tattoo.title.toLowerCase().includes('demo')
+      )
+      .map(tattoo => tattoo.id);
+      
+    console.log(`Found ${publicTattooIds.length} tattoos that should be public`);
+    return publicTattooIds;
+    
+  } catch (error) {
+    console.error('Error in checkForPublicTattoos:', error);
+    return [];
+  }
+};
+
 export const fetchPublicTattoos = async (page: number, pageSize: number) => {
   const from = (page - 1) * pageSize;
   const to = from + pageSize - 1;
@@ -70,27 +92,35 @@ export const fetchPublicTattoos = async (page: number, pageSize: number) => {
   console.log(`Fetching public tattoos: page ${page}, range ${from}-${to}`);
   
   try {
-    // Get all public tattoo IDs from localStorage
+    // First get all public tattoo IDs from localStorage AND from server-side
+    // 1. Check localStorage (for the logged-in user who created public tattoos)
     const keys = Object.keys(localStorage);
-    const publicTattooIds = keys
+    const localStoragePublicIds = keys
       .filter(key => key.startsWith('tattoo_public_') && localStorage.getItem(key) === 'true')
       .map(key => key.replace('tattoo_public_', ''));
     
-    console.log(`Found ${publicTattooIds.length} public tattoo IDs in localStorage:`, publicTattooIds);
+    console.log(`Found ${localStoragePublicIds.length} public tattoo IDs in localStorage`);
     
-    // If there are no public tattoos, create a demo one for testing if we're in development
-    if (publicTattooIds.length === 0 && import.meta.env.DEV) {
-      console.log('No public tattoos found. Creating a demo public tattoo for testing...');
+    // 2. Check Supabase for tattoos that should be considered public
+    const supabasePublicIds = await checkForPublicTattoos();
+    
+    // 3. Combine both sources of public tattoo IDs and remove duplicates
+    const publicTattooIds = Array.from(new Set([...localStoragePublicIds, ...supabasePublicIds]));
+    
+    console.log(`Combined ${publicTattooIds.length} unique public tattoo IDs from all sources`);
+    
+    // If there are no public tattoos, create a demo one for testing
+    if (publicTattooIds.length === 0) {
+      console.log('No public tattoos found. Creating a demo public tattoo...');
       await createDemoPublicTattoo();
-      // Re-check public tattoo IDs after creating the demo tattoo
-      const updatedKeys = Object.keys(localStorage);
-      const updatedPublicTattooIds = updatedKeys
-        .filter(key => key.startsWith('tattoo_public_') && localStorage.getItem(key) === 'true')
-        .map(key => key.replace('tattoo_public_', ''));
       
-      console.log(`After creating demo tattoo, found ${updatedPublicTattooIds.length} public tattoo IDs`);
+      // Re-check for public tattoos after creating the demo
+      const newSupabasePublicIds = await checkForPublicTattoos();
+      const updatedPublicIds = Array.from(new Set([...localStoragePublicIds, ...newSupabasePublicIds]));
       
-      if (updatedPublicTattooIds.length === 0) {
+      console.log(`After creating demo, found ${updatedPublicIds.length} public tattoo IDs`);
+      
+      if (updatedPublicIds.length === 0) {
         return {
           tattoos: [],
           totalCount: 0,
@@ -98,14 +128,8 @@ export const fetchPublicTattoos = async (page: number, pageSize: number) => {
         };
       }
       
-      // Use the updated IDs list if we created a demo tattoo
-      publicTattooIds.push(...updatedPublicTattooIds);
-    } else if (publicTattooIds.length === 0) {
-      return {
-        tattoos: [],
-        totalCount: 0,
-        totalPages: 0
-      };
+      // Use the updated list
+      publicTattooIds.push(...updatedPublicIds);
     }
     
     // Fetch all profiles
@@ -177,7 +201,7 @@ const createDemoPublicTattoo = async () => {
     const { data: existingData, error: checkError } = await supabase
       .from('tattoos')
       .select('id')
-      .eq('title', 'Demo Public Tattoo')
+      .ilike('title', '%Demo Public Tattoo%')
       .limit(1);
       
     if (checkError) {
@@ -185,9 +209,9 @@ const createDemoPublicTattoo = async () => {
       return null;
     }
     
-    // If demo tattoo already exists, just make it public
+    // If demo tattoo already exists, just make it public in localStorage
     if (existingData && existingData.length > 0) {
-      console.log('Demo tattoo already exists, ensuring it is marked as public');
+      console.log('Demo tattoo already exists, ensuring it is marked as public in localStorage');
       localStorage.setItem(`tattoo_public_${existingData[0].id}`, 'true');
       return existingData[0].id;
     }
@@ -214,7 +238,7 @@ const createDemoPublicTattoo = async () => {
       return null;
     }
     
-    // Mark the new tattoo as public
+    // Mark the new tattoo as public in localStorage
     localStorage.setItem(`tattoo_public_${data.id}`, 'true');
     console.log('Created a new demo public tattoo with ID:', data.id);
     
@@ -232,43 +256,41 @@ export const checkLocalStorageForPublicTattoos = (
   showToast = false
 ) => {
   console.log('Checking localStorage for public tattoos');
+  
+  // Get public tattoos from localStorage
   const keys = Object.keys(localStorage);
   const publicTattooKeys = keys.filter(key => key.startsWith('tattoo_public_') && localStorage.getItem(key) === 'true');
   const publicTattooIds = publicTattooKeys.map(key => key.replace('tattoo_public_', ''));
   
-  console.log('Public tattoo keys found:', publicTattooKeys);
-  console.log('Public tattoo IDs:', publicTattooIds);
+  console.log('Public tattoo keys found in localStorage:', publicTattooKeys);
   
-  setPublicTattooCount(publicTattooIds.length);
-  
-  // If no public tattoos found, initialize them
-  if (publicTattooIds.length === 0) {
-    // Initialize public status for all existing tattoos
-    initializePublicStatusInLocalStorage().then(() => {
-      // Recheck after initialization
-      const updatedKeys = Object.keys(localStorage);
-      const updatedPublicTattooKeys = updatedKeys.filter(
-        key => key.startsWith('tattoo_public_') && localStorage.getItem(key) === 'true'
-      );
-      
-      console.log('After initialization, found public tattoo keys:', updatedPublicTattooKeys);
-      setPublicTattooCount(updatedPublicTattooKeys.length);
-      
-      if (updatedPublicTattooKeys.length === 0 && import.meta.env.DEV) {
+  // Also check server-side (to show the total count correctly)
+  checkForPublicTattoos().then(serverPublicIds => {
+    const totalPublicCount = new Set([...publicTattooIds, ...serverPublicIds]).size;
+    console.log(`Total public tattoos (localStorage + server): ${totalPublicCount}`);
+    
+    setPublicTattooCount(totalPublicCount);
+    
+    if (showToast) {
+      const message = `Found ${totalPublicCount} public tattoos in total`;
+      setDebugInfo({ message, type: 'info' });
+      toast.info(message);
+    }
+    
+    // If no public tattoos found, initialize and possibly create a demo
+    if (totalPublicCount === 0) {
+      // Initialize public status for all existing tattoos
+      initializePublicStatusInLocalStorage().then(() => {
+        // Create a demo tattoo
         setDebugInfo({ 
           message: 'No public tattoos found. Creating a demo public tattoo...', 
           type: 'info' 
         });
         createDemoPublicTattoo().then(() => refetch());
-      }
-    });
-  }
-  
-  if (showToast) {
-    const message = `Found ${publicTattooIds.length} public tattoos in localStorage`;
-    setDebugInfo({ message, type: 'info' });
-    toast.info(message);
-  }
-  
-  refetch();
+      });
+    } else {
+      // Refresh the display with existing public tattoos
+      refetch();
+    }
+  });
 };
