@@ -1,3 +1,4 @@
+
 import React, { createContext, useContext, useEffect, useState } from 'react';
 import { Session, User } from '@supabase/supabase-js';
 import { supabase } from '@/integrations/supabase/client';
@@ -62,8 +63,10 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       }
     });
     if (!error) {
-      // Redirect on success, but may need to verify email first depending on settings
-      toast("Account created! Please check your email to verify your account.");
+      // Since email verification is not required, we can sign in the user right away
+      toast("Account created successfully!");
+      // Auto-redirect to app page after successful signup
+      navigate('/app');
     }
     return { error };
   };
