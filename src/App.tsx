@@ -10,34 +10,67 @@ import NotFound from "./pages/NotFound";
 import Auth from "./pages/Auth";
 import { AuthProvider } from "./context/AuthContext";
 import ProtectedRoute from "./components/ProtectedRoute";
+import { useEffect } from "react";
+import { supabase } from "./integrations/supabase/client";
 
 const queryClient = new QueryClient();
 
-const App = () => (
-  <QueryClientProvider client={queryClient}>
-    <TooltipProvider>
-      <BrowserRouter>
-        <AuthProvider>
-          <Toaster />
-          <Sonner />
-          <Routes>
-            <Route path="/" element={<Homepage />} />
-            <Route path="/auth" element={<Auth />} />
-            <Route 
-              path="/app" 
-              element={
-                <ProtectedRoute>
-                  <Index />
-                </ProtectedRoute>
-              } 
-            />
-            {/* ADD ALL CUSTOM ROUTES ABOVE THE CATCH-ALL "*" ROUTE */}
-            <Route path="*" element={<NotFound />} />
-          </Routes>
-        </AuthProvider>
-      </BrowserRouter>
-    </TooltipProvider>
-  </QueryClientProvider>
-);
+// Initialize storage bucket for tattoo images if it doesn't exist
+const initializeStorage = async () => {
+  try {
+    // Check if the bucket exists
+    const { data: buckets } = await supabase.storage.listBuckets();
+    const bucketExists = buckets?.some(bucket => bucket.name === 'tattoos');
+    
+    if (!bucketExists) {
+      // Create the bucket
+      const { error } = await supabase.storage.createBucket('tattoos', {
+        public: true,
+        fileSizeLimit: 10485760, // 10MB
+      });
+      
+      if (error) {
+        console.error('Error creating storage bucket:', error);
+      } else {
+        console.log('Created tattoos storage bucket');
+      }
+    }
+  } catch (error) {
+    console.error('Error initializing storage:', error);
+  }
+};
+
+const App = () => {
+  useEffect(() => {
+    initializeStorage();
+  }, []);
+
+  return (
+    <QueryClientProvider client={queryClient}>
+      <TooltipProvider>
+        <BrowserRouter>
+          <AuthProvider>
+            <Toaster />
+            <Sonner />
+            <Routes>
+              <Route path="/" element={<Homepage />} />
+              <Route path="/auth" element={<Auth />} />
+              <Route 
+                path="/app" 
+                element={
+                  <ProtectedRoute>
+                    <Index />
+                  </ProtectedRoute>
+                } 
+              />
+              {/* ADD ALL CUSTOM ROUTES ABOVE THE CATCH-ALL "*" ROUTE */}
+              <Route path="*" element={<NotFound />} />
+            </Routes>
+          </AuthProvider>
+        </BrowserRouter>
+      </TooltipProvider>
+    </QueryClientProvider>
+  );
+};
 
 export default App;

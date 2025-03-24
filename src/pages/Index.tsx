@@ -19,6 +19,7 @@ interface Tattoo {
   location: string;
   meaning: string;
   lastRefreshed?: Date;
+  imageFile?: File;
 }
 
 const Index = () => {
@@ -64,12 +65,43 @@ const Index = () => {
     mutationFn: async (newTattoo: Tattoo) => {
       if (!user) throw new Error('User not authenticated');
       
+      let imageUrl = newTattoo.image;
+      
+      // Check if we have a File object from a camera capture or upload
+      if (newTattoo.imageFile instanceof File) {
+        try {
+          // Upload the file to Supabase Storage
+          const file = newTattoo.imageFile;
+          const fileExt = file.name.split('.').pop();
+          const fileName = `${user.id}/${Date.now()}.${fileExt}`;
+          
+          const { error: uploadError, data } = await supabase.storage
+            .from('tattoos')
+            .upload(fileName, file);
+            
+          if (uploadError) throw uploadError;
+          
+          // Get the public URL
+          const { data: { publicUrl } } = supabase.storage
+            .from('tattoos')
+            .getPublicUrl(fileName);
+            
+          imageUrl = publicUrl;
+        } catch (error) {
+          console.error('Error uploading image:', error);
+          toast.error('Failed to upload image');
+          throw error;
+        }
+      }
+      
       const tattooData = {
         title: newTattoo.title,
-        image: newTattoo.image,
+        image: imageUrl,
         artist: newTattoo.artist,
         location: newTattoo.location,
         meaning: newTattoo.meaning,
+        date_added: newTattoo.dateAdded.toISOString(),
+        last_refreshed: newTattoo.lastRefreshed?.toISOString(),
         user_id: user.id,
       };
       
@@ -81,7 +113,7 @@ const Index = () => {
           .eq('id', newTattoo.id);
         
         if (error) throw error;
-        return newTattoo;
+        return { ...newTattoo, image: imageUrl };
       } else {
         // Insert new tattoo
         const { data, error } = await supabase
@@ -95,6 +127,7 @@ const Index = () => {
           ...newTattoo,
           id: data.id,
           dateAdded: new Date(data.date_added),
+          image: imageUrl
         };
       }
     },
