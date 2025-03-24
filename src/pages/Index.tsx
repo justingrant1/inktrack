@@ -63,24 +63,30 @@ const Index = () => {
     enabled: !!user,
   });
 
-  // Fetch user subscription tier
+  // Fetch user subscription tier from profiles
   useEffect(() => {
     const fetchUserTier = async () => {
       if (!user) return;
       
       const { data, error } = await supabase
-        .from('user_profiles')
-        .select('subscription_tier')
-        .eq('user_id', user.id)
+        .from('profiles')
+        .select('username')
+        .eq('id', user.id)
         .single();
       
       if (error && error.code !== 'PGRST116') {
-        console.error('Error fetching user tier:', error);
+        console.error('Error fetching user profile:', error);
         return;
       }
       
-      if (data && data.subscription_tier) {
-        setUserTier(data.subscription_tier as SubscriptionTier);
+      // For now, we'll just use the free tier as default until we update the profiles table
+      // We'll implement the subscription upgrade logic later
+      setUserTier('free');
+      
+      // Check localStorage for subscription status (temporary solution)
+      const storedTier = localStorage.getItem('subscription_tier');
+      if (storedTier === 'premium') {
+        setUserTier('premium');
       }
     };
     

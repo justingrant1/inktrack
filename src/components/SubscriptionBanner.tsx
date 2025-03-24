@@ -1,6 +1,5 @@
 
 import React from 'react';
-import { useAuth } from '@/context/AuthContext';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 import { Button } from '@/components/ui/button';
 import { SubscriptionTier, SUBSCRIPTION_TIERS, hasReachedTattooLimit } from '@/utils/subscriptionTiers';

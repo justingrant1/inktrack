@@ -44,19 +44,6 @@ const initializeStorage = async () => {
 const App = () => {
   useEffect(() => {
     initializeStorage();
-    // Initialize user_profiles table and subscription tiers
-    const initUserProfiles = async () => {
-      try {
-        const { error } = await supabase.rpc('init_user_profiles_table');
-        if (error) {
-          console.error('Error initializing user profiles:', error);
-        }
-      } catch (error) {
-        console.error('Error initializing user profiles:', error);
-      }
-    };
-    
-    initUserProfiles();
   }, []);
 
   return (

@@ -8,7 +8,6 @@ import { useNavigate } from 'react-router-dom';
 import { SUBSCRIPTION_TIERS } from '@/utils/subscriptionTiers';
 import Header from '@/components/Header';
 import { useAuth } from '@/context/AuthContext';
-import { supabase } from '@/integrations/supabase/client';
 
 const Subscription = () => {
   const navigate = useNavigate();
@@ -21,16 +20,11 @@ const Subscription = () => {
     
     setIsLoading(true);
     try {
-      // Update the user's subscription tier in the database
-      const { error } = await supabase
-        .from('user_profiles')
-        .upsert({
-          user_id: user.id,
-          subscription_tier: 'premium',
-          subscription_updated_at: new Date().toISOString()
-        });
-        
-      if (error) throw error;
+      // Store subscription info in localStorage (temporary solution)
+      localStorage.setItem('subscription_tier', 'premium');
+      
+      // In a real app, you would update the database with the subscription info
+      // This is a simplified version until we update the database schema
       
       toast.success('Successfully upgraded to Premium!');
       navigate('/app');
