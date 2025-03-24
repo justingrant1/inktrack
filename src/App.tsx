@@ -8,6 +8,7 @@ import Homepage from "./pages/Homepage";
 import Index from "./pages/Index";
 import NotFound from "./pages/NotFound";
 import Auth from "./pages/Auth";
+import Subscription from "./pages/Subscription";
 import { AuthProvider } from "./context/AuthContext";
 import ProtectedRoute from "./components/ProtectedRoute";
 import { useEffect } from "react";
@@ -43,6 +44,19 @@ const initializeStorage = async () => {
 const App = () => {
   useEffect(() => {
     initializeStorage();
+    // Initialize user_profiles table and subscription tiers
+    const initUserProfiles = async () => {
+      try {
+        const { error } = await supabase.rpc('init_user_profiles_table');
+        if (error) {
+          console.error('Error initializing user profiles:', error);
+        }
+      } catch (error) {
+        console.error('Error initializing user profiles:', error);
+      }
+    };
+    
+    initUserProfiles();
   }, []);
 
   return (
@@ -60,6 +74,14 @@ const App = () => {
                 element={
                   <ProtectedRoute>
                     <Index />
+                  </ProtectedRoute>
+                } 
+              />
+              <Route 
+                path="/subscription" 
+                element={
+                  <ProtectedRoute>
+                    <Subscription />
                   </ProtectedRoute>
                 } 
               />

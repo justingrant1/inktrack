@@ -9,6 +9,8 @@ import EmptyState from '@/components/EmptyState';
 import { useAuth } from '@/context/AuthContext';
 import { supabase } from '@/integrations/supabase/client';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
+import SubscriptionBanner from '@/components/SubscriptionBanner';
+import { SubscriptionTier, hasReachedTattooLimit } from '@/utils/subscriptionTiers';
 
 interface Tattoo {
   id: string;
@@ -27,6 +29,7 @@ const Index = () => {
   const [editingTattoo, setEditingTattoo] = useState<Tattoo | null>(null);
   const { user } = useAuth();
   const queryClient = useQueryClient();
+  const [userTier, setUserTier] = useState<SubscriptionTier>('free');
 
   // Fetch tattoos from Supabase
   const { data: tattoos = [], isLoading } = useQuery({
@@ -59,6 +62,30 @@ const Index = () => {
     },
     enabled: !!user,
   });
+
+  // Fetch user subscription tier
+  useEffect(() => {
+    const fetchUserTier = async () => {
+      if (!user) return;
+      
+      const { data, error } = await supabase
+        .from('user_profiles')
+        .select('subscription_tier')
+        .eq('user_id', user.id)
+        .single();
+      
+      if (error && error.code !== 'PGRST116') {
+        console.error('Error fetching user tier:', error);
+        return;
+      }
+      
+      if (data && data.subscription_tier) {
+        setUserTier(data.subscription_tier as SubscriptionTier);
+      }
+    };
+    
+    fetchUserTier();
+  }, [user]);
 
   // Add/update tattoo mutation
   const saveTattooMutation = useMutation({
@@ -144,6 +171,12 @@ const Index = () => {
   });
 
   const handleAddNew = () => {
+    // Check if user has reached their limit before allowing new tattoo
+    if (hasReachedTattooLimit(userTier, tattoos.length) && !editingTattoo) {
+      toast.error('You have reached your tattoo limit. Upgrade to premium for unlimited tattoos.');
+      return;
+    }
+    
     setEditingTattoo(null);
     setIsFormOpen(true);
   };
@@ -157,6 +190,12 @@ const Index = () => {
   };
 
   const handleSaveTattoo = (newTattoo: Tattoo) => {
+    // If it's a new tattoo (not editing) and user has reached limit, show error
+    if (!editingTattoo && hasReachedTattooLimit(userTier, tattoos.length)) {
+      toast.error('You have reached your tattoo limit. Upgrade to premium for unlimited tattoos.');
+      return;
+    }
+    
     saveTattooMutation.mutate(newTattoo);
   };
 
@@ -165,6 +204,12 @@ const Index = () => {
       <Header onAddNew={handleAddNew} />
       
       <main className="container py-6 animate-fade-in">
+        {/* Display subscription banner if user has reached limit */}
+        <SubscriptionBanner 
+          tattooCount={tattoos.length} 
+          userTier={userTier} 
+        />
+        
         {isLoading ? (
           <div className="flex justify-center items-center py-12">
             <div className="animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-primary"></div>
@@ -173,7 +218,14 @@ const Index = () => {
           <EmptyState onAddNew={handleAddNew} />
         ) : (
           <>
-            <h2 className="text-2xl font-semibold mb-6">Your Tattoo Collection</h2>
+            <div className="flex justify-between items-center mb-6">
+              <h2 className="text-2xl font-semibold">Your Tattoo Collection</h2>
+              {userTier === 'premium' && (
+                <div className="bg-primary/10 text-primary px-3 py-1 rounded-full text-sm font-medium">
+                  Premium Member
+                </div>
+              )}
+            </div>
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
               {tattoos.map((tattoo) => (
                 <TattooCard 
