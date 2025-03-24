@@ -1,3 +1,4 @@
+
 import React, { useState, useEffect } from 'react';
 import { useToast } from "@/hooks/use-toast";
 import { toast } from "sonner";
@@ -69,7 +70,9 @@ const Index = () => {
     const fetchUserTier = async () => {
       if (!user) return;
       
+      // Check if user is premium from stripe.ts utility
       const isPremium = isUserPremium();
+      console.log('[DEBUG] User premium status on page load:', isPremium);
       setUserTier(isPremium ? 'premium' : 'free');
     };
     
@@ -158,6 +161,9 @@ const Index = () => {
         };
       }
       
+      // Verify we're not accidentally setting premium status
+      console.log('[DEBUG] Premium status after saving tattoo:', isUserPremium());
+      
       return result;
     },
     onSuccess: () => {
@@ -165,6 +171,13 @@ const Index = () => {
       setEditingTattoo(null);
       setIsFormOpen(false);
       toast.success(editingTattoo ? "Tattoo updated successfully!" : "New tattoo added!");
+      
+      // Double-check premium status hasn't changed
+      const isPremium = isUserPremium();
+      console.log('[DEBUG] Premium status after mutation success:', isPremium);
+      
+      // Make sure user tier state matches actual premium status
+      setUserTier(isPremium ? 'premium' : 'free');
     },
     onError: (error) => {
       console.error('Error saving tattoo:', error);

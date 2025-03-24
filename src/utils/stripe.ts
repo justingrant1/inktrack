@@ -46,5 +46,14 @@ export function handleStripeCheckoutSuccess(sessionId: string): Promise<boolean>
 }
 
 export function isUserPremium(): boolean {
-  return localStorage.getItem('subscription_tier') === 'premium';
+  // Add debug logging to help identify when this function is called
+  const isPremium = localStorage.getItem('subscription_tier') === 'premium';
+  console.log('[STRIPE] Checking if user is premium:', isPremium);
+  return isPremium;
+}
+
+// Function to explicitly clear premium status (for debugging)
+export function clearPremiumStatus(): void {
+  console.log('[STRIPE] Clearing premium status');
+  localStorage.removeItem('subscription_tier');
 }
