@@ -1,8 +1,8 @@
-
 import React, { createContext, useContext, useEffect, useState } from 'react';
 import { Session, User } from '@supabase/supabase-js';
 import { supabase } from '@/integrations/supabase/client';
 import { useNavigate } from 'react-router-dom';
+import { toast } from "sonner";
 
 interface AuthContextProps {
   session: Session | null;
@@ -63,10 +63,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     });
     if (!error) {
       // Redirect on success, but may need to verify email first depending on settings
-      toast({
-        title: "Account created!",
-        description: "Please check your email to verify your account.",
-      });
+      toast("Account created! Please check your email to verify your account.");
     }
     return { error };
   };
