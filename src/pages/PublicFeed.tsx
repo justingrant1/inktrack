@@ -1,6 +1,6 @@
 
 import React, { useRef, useEffect } from 'react';
-import { useQuery } from '@tanstack/react-query';
+import { useInfiniteQuery } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
 import Header from '@/components/Header';
 import PublicTattooCard from '@/components/PublicTattooCard';
@@ -54,12 +54,16 @@ const PublicFeed = () => {
   const { ref: loadMoreRef, inView } = useInView();
   const loadedPagesRef = useRef<Set<number>>(new Set([1]));
   
-  // Fetch public tattoos with pagination
-  const { data, isLoading, fetchNextPage, hasNextPage, isFetchingNextPage } = useQuery({
+  // Fetch public tattoos with infinite pagination
+  const { 
+    data, 
+    isLoading, 
+    fetchNextPage, 
+    hasNextPage, 
+    isFetchingNextPage 
+  } = useInfiniteQuery({
     queryKey: ['public-tattoos-infinite'],
-    queryFn: async ({ pageParam = 1 }) => {
-      return fetchPublicTattoos(pageParam, pageSize);
-    },
+    queryFn: ({ pageParam }) => fetchPublicTattoos(pageParam, pageSize),
     initialPageParam: 1,
     getNextPageParam: (lastPage, allPages) => {
       const nextPage = allPages.length + 1;
