@@ -1,6 +1,4 @@
-
 import React, { useEffect, useState } from 'react';
-import { useInfiniteQuery } from '@tanstack/react-query';
 import { useSearchParams } from 'react-router-dom';
 import { useInView } from 'react-intersection-observer';
 import { toast } from 'sonner';
@@ -10,14 +8,13 @@ import TattooGrid from '@/components/TattooGrid';
 import LoadingIndicator from '@/components/LoadingIndicator';
 import DebugInfo from '@/components/DebugInfo';
 import LoadMoreIndicator from '@/components/LoadMoreIndicator';
-import { checkLocalStorageForPublicTattoos, fetchPublicTattoos } from '@/utils/publicTattooUtils';
+import { fetchPublicTattoos } from '@/utils/publicTattooUtils';
 
 const PublicFeed = () => {
   const [searchParams] = useSearchParams();
   const [publicTattooCount, setPublicTattooCount] = useState(0);
   const [isLoading, setIsLoading] = useState(true);
   const [loadingProgress, setLoadingProgress] = useState(0);
-  const page = parseInt(searchParams.get('page') || '1');
   const pageSize = 9; // Show more items per page
   
   const { ref: loadMoreRef, inView } = useInView();
@@ -27,18 +24,21 @@ const PublicFeed = () => {
     type: 'info'
   });
   
-  // Use state instead of React Query to avoid authentication issues
+  // Direct state management for tattoos
   const [allTattoos, setAllTattoos] = useState<any[]>([]);
   const [hasMore, setHasMore] = useState(false);
   const [pageCount, setPageCount] = useState(1);
   const [totalCount, setTotalCount] = useState(0);
-  const [isQueryLoading, setIsQueryLoading] = useState(true);
+  const [isQueryLoading, setIsQueryLoading] = useState(false);
+  const [isInitialized, setIsInitialized] = useState(false);
   
   // Function to fetch public tattoos
   const fetchTattooData = async (pageNumber: number = 1) => {
+    if (isQueryLoading) return { tattoos: [], totalCount: 0, totalPages: 0 };
+    
     setIsQueryLoading(true);
     try {
-      console.log(`Manually fetching public tattoos for page ${pageNumber}`);
+      console.log(`Fetching public tattoos for page ${pageNumber}`);
       const result = await fetchPublicTattoos(pageNumber, pageSize);
       
       if (pageNumber === 1) {
@@ -49,9 +49,12 @@ const PublicFeed = () => {
         setAllTattoos(prev => [...prev, ...result.tattoos]);
       }
       
+      // Update counts
       setTotalCount(result.totalCount);
+      setPublicTattooCount(result.totalCount);
       setHasMore(pageNumber < result.totalPages);
       setPageCount(result.totalPages);
+      
       return result;
     } catch (error) {
       console.error("Error fetching public tattoos:", error);
@@ -61,78 +64,85 @@ const PublicFeed = () => {
     }
   };
   
-  // Replacement for refetch function
+  // Refetch first page
   const refetch = async () => {
-    await fetchTattooData(1);
+    return await fetchTattooData(1);
   };
   
-  // Replacement for fetchNextPage
+  // Fetch next page
   const fetchNextPage = async () => {
-    if (hasMore) {
+    if (hasMore && !isQueryLoading) {
       const currentPage = Math.ceil(allTattoos.length / pageSize) + 1;
       await fetchTattooData(currentPage);
     }
   };
-  
-  // Initial setup - once the query is ready
+
+  // One-time initialization
   useEffect(() => {
-    // Initialize public status for all tattoos and check for public ones
-    if (refetch) {
-      checkLocalStorageForPublicTattoos(setPublicTattooCount, refetch, setDebugInfo, false);
-      console.log('PublicFeed component mounted, triggering initial load');
-    }
-  }, [refetch]);
-  
-  // Simulate loading progress
-  useEffect(() => {
-    const timer = setInterval(() => {
-      setLoadingProgress(prev => {
-        if (prev >= 100) {
-          clearInterval(timer);
-          return 100;
-        }
-        return prev + 10;
-      });
-    }, 200);
+    if (isInitialized) return;
     
-    return () => clearInterval(timer);
-  }, []);
-  
-  // Set loading state when we start and load the data
-  useEffect(() => {
+    // Initialize with a single load
+    setIsInitialized(true);
     setIsLoading(true);
     
-    // Initialize and check for public tattoos
-    checkLocalStorageForPublicTattoos(setPublicTattooCount, refetch, setDebugInfo, false);
+    // Start the loading bar animation
+    const loadingTimer = setInterval(() => {
+      setLoadingProgress(prev => {
+        if (prev >= 100) {
+          clearInterval(loadingTimer);
+          return 100;
+        }
+        return prev + 5;
+      });
+    }, 100);
     
-    // Initial data load
-    fetchTattooData(1).then(() => {
+    // Fetch data just once on mount
+    fetchTattooData(1).then(result => {
+      // Update tattoo count
+      setPublicTattooCount(result.totalCount);
+      
+      // Complete loading after a brief delay
       setTimeout(() => {
         setIsLoading(false);
         setDebugInfo({
-          message: publicTattooCount > 0 
-            ? `Found ${publicTattooCount} public tattoos` 
+          message: result.totalCount > 0 
+            ? `Found ${result.totalCount} public tattoos` 
             : 'No public tattoos found. Try making some tattoos public!',
-          type: publicTattooCount > 0 ? 'success' : 'info'
+          type: result.totalCount > 0 ? 'success' : 'info'
         });
-      }, 1500);
+        
+        clearInterval(loadingTimer);
+        setLoadingProgress(100);
+      }, 1000);
     });
     
-    return () => {};
-  }, []);
+    return () => {
+      clearInterval(loadingTimer);
+    };
+  }, [isInitialized]);
   
-  // Load more when scrolling
+  // Infinite scrolling
   useEffect(() => {
-    if (inView && hasMore && !isQueryLoading) {
+    if (inView && hasMore && !isQueryLoading && !isLoading) {
       fetchNextPage();
     }
-  }, [inView, hasMore, isQueryLoading]);
+  }, [inView, hasMore, isQueryLoading, isLoading]);
   
-  console.log('All tattoos to display:', allTattoos.length, allTattoos);
-
+  // Handle gallery refresh
   const handleRefreshGallery = async () => {
     setDebugInfo({ message: "Refreshing gallery...", type: 'info' });
-    await checkLocalStorageForPublicTattoos(setPublicTattooCount, refetch, setDebugInfo, true);
+    setIsLoading(true);
+    
+    const result = await refetch();
+    
+    setIsLoading(false);
+    setDebugInfo({
+      message: result.totalCount > 0
+        ? `Found ${result.totalCount} public tattoos`
+        : 'No public tattoos found. Try making some tattoos public!',
+      type: result.totalCount > 0 ? 'success' : 'info'
+    });
+    
     toast.success("Gallery refreshed");
   };
 
@@ -151,12 +161,9 @@ const PublicFeed = () => {
             </div>
             <div className="flex flex-col md:flex-row gap-2">
               <button
-                onClick={() => {
-                  handleRefreshGallery();
-                  setDebugInfo({ message: "Gallery refreshed", type: 'success' });
-                  toast.success("Gallery refreshed");
-                }}
+                onClick={handleRefreshGallery}
                 className="px-4 py-2 bg-primary text-primary-foreground rounded-md hover:bg-primary/90 transition-colors"
+                disabled={isLoading || isQueryLoading}
               >
                 Refresh Gallery
               </button>
@@ -165,31 +172,39 @@ const PublicFeed = () => {
           
           <DebugInfo message={debugInfo.message} type={debugInfo.type} />
           
-          {(isLoading || isQueryLoading) && (
+          {(isLoading) && (
             <LoadingIndicator 
               progress={loadingProgress} 
               message="Loading public tattoos..." 
             />
           )}
           
-          <ScrollArea className="h-[calc(100vh-200px)] rounded-lg pb-4">
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 mb-8">
-              <TattooGrid 
-                tattoos={allTattoos}
-                isLoading={isLoading || isQueryLoading}
-                isInitialLoading={isLoading}
-                publicTattooCount={publicTattooCount}
-                onRefresh={handleRefreshGallery}
+          {!isLoading && (
+            <ScrollArea className="h-[calc(100vh-200px)] rounded-lg pb-4">
+              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 mb-8">
+                <TattooGrid 
+                  tattoos={allTattoos}
+                  isLoading={false}
+                  isInitialLoading={false}
+                  publicTattooCount={publicTattooCount}
+                  onRefresh={handleRefreshGallery}
+                />
+              </div>
+              
+              {isQueryLoading && (
+                <div className="flex justify-center py-4">
+                  <div className="animate-spin rounded-full h-8 w-8 border-t-2 border-b-2 border-primary"></div>
+                </div>
+              )}
+              
+              <LoadMoreIndicator 
+                hasNextPage={hasMore}
+                isFetchingNextPage={isQueryLoading}
+                loadMoreRef={loadMoreRef}
+                allTattoosLength={allTattoos.length}
               />
-            </div>
-            
-            <LoadMoreIndicator 
-              hasNextPage={hasMore}
-              isFetchingNextPage={isQueryLoading && allTattoos.length > 0}
-              loadMoreRef={loadMoreRef}
-              allTattoosLength={allTattoos.length}
-            />
-          </ScrollArea>
+            </ScrollArea>
+          )}
         </div>
       </main>
     </div>
