@@ -1,3 +1,4 @@
+
 import React, { useRef, useEffect, useState } from 'react';
 import { useInfiniteQuery } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
@@ -36,7 +37,7 @@ const fetchPublicTattoos = async (page: number, pageSize: number) => {
     // Fetch all tattoos from Supabase
     const { data, error } = await supabase
       .from('tattoos')
-      .select('*')
+      .select('*, profiles(username, avatar_url)')
       .order('created_at', { ascending: false });
       
     if (error) {
@@ -56,6 +57,8 @@ const fetchPublicTattoos = async (page: number, pageSize: number) => {
       .map(tattoo => ({
         ...tattoo,
         isPublic: true,
+        username: tattoo.profiles?.username || 'Anonymous',
+        avatar_url: tattoo.profiles?.avatar_url || null,
         dateAdded: new Date(tattoo.created_at || tattoo.date_added)
       }));
     
